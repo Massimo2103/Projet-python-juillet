@@ -1,0 +1,564 @@
+from ftplib import FTP
+import os
+import socket
+import sys
+import shutil
+
+
+# connexion au serveur FTP
+
+ftp_host = '127.0.0.1'
+ftp_login = 'MARSEILLE'
+ftp_password = 'Marseille'
+path_ftp = "C:/REMOTE_PROJET/MARSEILLE"
+print("Avant connexion")
+connexion = FTP (ftp_host, ftp_login, ftp_password)
+print("Après connexion")
+print(connexion.getwelcome()) # Récupérer le message
+
+#connexion.quit()
+
+def ip_valide(Hote): # Définition de l'adresse IP
+    try: # Essaye
+        socket.inet_aton(Hote) # Convertir l'adresse IP en binaire.
+        print("L'adresse IP "+ str(Hote) +" est valide.") # Afficher le message si l'adresse IP est valide.
+        return 0 # Retourner la valeur 0.
+    except socket.error: # Interception de l'erreur lié au réseau.
+        print("Erreur : L'adresse IP "+ str(Hote) +" n'est pas valide.") # Afficher le message si l'adresse IP n'est pas valide.
+        return 1 # Retourner la valeur 1.
+    
+def ip_input(): # Définition demande et ping de l'adresse IPV4.
+
+    Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+    Response = ip_valide(Hote) # Vérification de la validité de l'adresse IPV4.
+    if Response == 0: # Si la défnition précendente renvoie la valeur 0.
+        Response = os.system("ping -n 1 " + Hote ) # Ping avec 1 pacquet vers l'adresse IP.
+
+        if Response == 0: # Si le ping réussi.
+            return Hote # Retourner l'adresse IP de l'équipement.
+        
+        else: # Sinon
+            print ("") # Afficher ligne vide.
+            print("Adresse IP incorrect! ") # Afficher message d'erreur.
+            return ip_input() # Demander l'adresse IPV4 valide.
+        
+    else: # Sinon
+        print ("") # Afficher ligne vide.
+        print("Adresse IP incorrect ou PING échoué ! ") # Afficher message d'erreur.
+        return ip_input() # Demander l'adresse IPV4 valide.
+
+
+def copier_fichier_dossier():
+     print("\n Copie FICHIER/DOSSIER ")
+
+     ip_input()
+     
+     while True :
+          try:  
+               choix = input("Souhaitez-vous copier un fichier (1) ou un dossier (2) ? : ")
+               if choix not in ("1", "2"):
+                    raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution et déclaration de valueError.
+               source = input("Entrez le chemin COMPLET du fichier ou du dossier à copier (ex : C/Massimo/Paris.txt): ").strip()
+               if not os.path.exists(source):
+                    raise ValueError("Le chemin SOURCE est incorrect ! ") # Arrêt de l'éxecution et déclaration de valueError.
+               destination = input("Entrez le chemin COMPLET où coller le fichier ou le dossier avec le nom du fichier (ex : C/Massimo/Juillet/Paris.txt) : ").strip()
+               dossier_parent = os.path.dirname(destination)
+               if not os.path.isdir(dossier_parent):
+                    raise ValueError("Le chemin de DESTINATION est incorrect ! ") # Arrêt de l'éxecution et déclaration de valueError.
+
+               if choix == "1":
+                    shutil.copy2(source, destination)
+                    print(f"Fichier copié avec succès vers : {destination}")
+               elif choix == "2":
+                    shutil.copytree(source, destination)
+                    print(f"Dossier copié avec succès vers : {destination}")
+               
+          except ValueError as e:
+               message_erreur = str(e) # Convertir l'erreur en chaîne de caractère.
+               print(f"Erreur : {message_erreur}") # Afficher le message d'erreur lié à l'erreur rencontrée.
+               
+          except Exception as e:
+               print(f"Erreur lors de la copie : {e}")
+
+          finally:
+               break
+
+def renommer_fichier_dossier():
+     print("\n Renommer FICHIER/DOSSIER ")
+
+     ip_input()
+     
+     while True :
+          try:  
+               choix = input("Souhaitez-vous renommer un fichier (1) ou un dossier (2) ? : ")
+               if choix not in ("1", "2"):
+                    raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution et déclaration de valueError.
+               ancien_nom = input("Entrez le chemin COMPLET du fichier ou du dossier à renommer (ex : C/Massimo/Paris): ").strip()
+               if not os.path.exists(ancien_nom):
+                    raise ValueError("Le chemin est incorrect ! ") # Arrêt de l'éxecution et déclaration de valueError.
+               nouveau_nom = input("Entrez le chemin COMPLET du fichier ou du dossier à renommer (ex : C/Massimo/Juillet/Paris) : ").strip()
+               dossier_parent = os.path.dirname(nouveau_nom)
+               if not os.path.isdir(dossier_parent):
+                    raise ValueError("Le chemin est incorrect ! ") # Arrêt de l'éxecution et déclaration de valueError.
+               
+               os.rename(ancien_nom, nouveau_nom)
+
+               if choix == "1":
+                    print(f"Fichier renommé avec succès : {ancien_nom} ==> {nouveau_nom}")
+               elif choix == "2":
+                    print(f"Dossier renommé avec succès : {ancien_nom} ==> {nouveau_nom}")
+               
+          except ValueError as e:
+               message_erreur = str(e) # Convertir l'erreur en chaîne de caractère.
+               print(f"Erreur : {message_erreur}") # Afficher le message d'erreur lié à l'erreur rencontrée.
+               
+          except Exception as e:
+               print(f"Erreur lors de la renommée : {e}")
+               continue
+
+          else :
+               break
+
+def creer_fichier_dossier():
+    print("\n Créer FICHIER/DOSSIER ")
+
+    ip_input()
+
+    while True:
+        try:
+            choix = input("Souhaitez-vous créer un fichier (1) ou un dossier (2) ? : ")
+            if choix not in ("1", "2"):
+                raise ValueError("La valeur saisie n'est pas 1 ou 2 !")
+            localisation = input("Entrez le chemin COMPLET où créer le fichier ou dossier (ex : C:/Massimo/Projet ; C:/Massmo/Projet.txt) : ").strip()
+            if not localisation:
+                 raise ValueError("La localisation n'a pas été renseignée !")
+            dossier_parent = os.path.dirname(localisation)
+            if not os.path.isdir(dossier_parent):
+                raise ValueError("Le dossier parent n'existe pas !")
+
+            if choix == "1":
+                with open(localisation, 'x') as f:  # 'x' pour créer uniquement s'il n'existe pas
+                    pass
+                print(f"Fichier créé avec succès : {localisation}")
+
+            elif choix == "2":
+                os.makedirs(localisation, exist_ok=False)  # erreur si existe déjà
+                print(f"Dossier créé avec succès : {localisation}")
+
+        except ValueError as e:
+            print(f"Erreur : {e}")
+        except FileExistsError:
+            print("Erreur : Le fichier ou dossier existe déjà.")
+        except Exception as e:
+            print(f"Erreur lors de la création : {e}")
+            continue
+        else:
+            break
+
+def deplacer_fichier_dossier():
+    print("\n Déplacer FICHIER/DOSSIER ")
+
+    ip_input()
+
+    while True:
+        try:
+            choix = input("Souhaitez-vous déplacer un fichier (1) ou un dossier (2) ? : ")
+            if choix not in ("1", "2"):
+                raise ValueError("La valeur saisie n'est pas 1 ou 2 !")
+            ancien_chemin = input("Entrez le chemin COMPLET du fichier ou dossier à déplacer (ex : C:/Massimo/Paris ou C:/Massimo/projet.txt : ").strip()
+            if not os.path.exists(ancien_chemin):
+                raise ValueError("Le chemin est incorrect !")
+            nouveau_chemin = input("Entrez le chemin COMPLET de destination (ex : C:/Massimo/Juillet/Paris ou C:/Massimo/projet.txt) : ").strip()
+            dossier_parent = os.path.dirname(nouveau_chemin)
+            if not os.path.isdir(dossier_parent):
+                raise ValueError("Le chemin de DESTINATION est incorrect !")
+
+            shutil.move(ancien_chemin, nouveau_chemin)
+
+            if choix == "1":
+                print(f"Fichier déplacé avec succès : {ancien_chemin} ==> {nouveau_chemin}")
+            elif choix == "2":
+                print(f"Dossier déplacé avec succès vers : {ancien_chemin} ==> {nouveau_chemin}")
+
+        except ValueError as e:
+            print(f"Erreur : {e}")
+        except Exception as e:
+            print(f"Erreur lors du déplacement : {e}")
+        else:
+            break
+
+def supprimer_fichier_dossier():
+    print("\ Supprimer FICHIER/DOSSIER ")
+
+    ip_input()
+    
+    while True:
+        try:
+            choix = input("Souhaitez-vous supprimer un fichier (1) ou un dossier (2) ? : ")
+            if choix not in ("1", "2"):
+               raise ValueError("La valeur saisie n'est pas 1 ou 2 !")
+            chemin = input("Entrez le chemin COMPLET du fichier ou du dossier à supprimer (ex : C:/Massimo/Paris.txt ou C:/Massimo/MonDossier) : ").strip()
+            if not os.path.exists(chemin):
+               raise ValueError("Le chemin spécifié n'existe pas !")
+
+            confirmation = input("Êtes-vous certain de vouloir supprimé cet élément et son contenu ? (o/n): ")
+            if confirmation == "o" :
+                if choix == "1":
+                    if not os.path.isfile(chemin):
+                        raise ValueError("Le chemin renseigné ne renvoie pas un fichier !")
+                    os.remove(chemin)
+                    print(f"Fichier supprimé avec succès : {chemin}")
+
+                elif choix == "2":
+                    if not os.path.isdir(chemin):
+                        raise ValueError("Le chemin renseigné ne renvoie pas un dossier !")
+                    shutil.rmtree(chemin)
+                    print(f"Dossier supprimé avec succès : {chemin}")
+            else : 
+                print("La suppression a été annulée !")
+
+        except ValueError as e:
+            print(f" Erreur : {e}")
+        except Exception as e:
+            print(f"Erreur lors de la suppression de l'élément ! : {e}")
+            continue
+        else:
+            break
+
+
+def lister_arborescence(chemin, prefixe=""):
+    try:
+        for element in os.listdir(chemin):
+            chemin_complet = os.path.join(chemin, element)
+            if os.path.isdir(chemin_complet):
+                print(f"{prefixe}[D] {element}/")
+                lister_arborescence(chemin_complet, prefixe + "    ")
+            else:
+                print(f"{prefixe}[F] {element}")
+    except Exception as e:
+        print(f"Erreur : {e}")
+
+    def main():
+        chemin = input("Entrez le chemin du dossier à lister : ").strip()
+        prefixe = input("Entrez le préfixe d'indentation (exemple : 4 espaces ou tab) ou laissez vide : ")
+        lister_arborescence(chemin, prefixe)
+
+    if __name__ == "__main__":
+     main()
+
+# lister_arborescence("C:/Users/Moi/Documents")
+
+
+def lister_dossier_fichier2():
+    print("\n lister FICHIER/DOSSIER ")
+
+    ip_input()
+    
+    while True:
+        try:
+            chemin = input("Saisissez le chemin à lister (ex : C:/Massimo/Paris) : ").strip()
+            if not os.path.isdir(chemin):
+                raise ValueError("Le chemin est incorrect ou n'existe pas ! ") # Arrêt de l'éxecution et déclaration de valueError.
+
+            # Liste le contenu du dossier parent de l'ancien chemin
+            liste = os.path.dirname(chemin)
+            print(f"\nContenu du dossier parent ({liste}) :")
+            with os.scandir(liste) as it:
+                for entry in it:
+                    type_entree = "Dossier" if entry.is_dir() else "Fichier"
+                    print(f" - [{type_entree}] {entry.name}")
+
+        except ValueError as e:
+            print(f"Erreur : {e}")
+
+        except Exception as e:
+            print(f"Erreur lors de la renommée : {e}")
+            continue
+
+        else:
+            break
+
+
+
+def naviguer_arborescence():
+    print("\n Naviguer dans l'arborescence des répertoires ")
+
+
+    try: 
+        chemin = input("Saisissez le chemin (ex : C:/Massimo/Paris) : ").strip()
+        if not os.path.isdir(chemin):
+            raise ValueError("Le chemin indiqué n'existe pas ou n'est pas un dossier !")
+        print(f"\n Contenu de : {chemin}")
+
+        while True:
+            try:
+                elements = os.listdir(chemin)
+                dossiers = [d for d in elements if os.path.isdir(os.path.join(chemin, d))]
+                fichiers = [f for f in elements if os.path.isfile(os.path.join(chemin, f))]
+
+                print("\n ========== DOSSIERS ==========")
+                for idx, d in enumerate(dossiers):
+                    print(f"  {idx + 1}. {d}")
+
+                print("\n ========== FICHIERS ==========")
+                for f in fichiers:
+                    print(f"  - {f}")
+
+                print("\n ========== OPTIONS ==========")
+                print("  numéro  - Accéder à un sous-dossier")
+                print("  ..      - Revenir au dossier parent")
+                print("  quitter - Quitter la navigation")
+
+                choix = input("\nEntrez votre choix : ").strip()
+
+                if choix == "quitter":
+                    print("Fin de la navigation dans l'arborescence.")
+                    break
+                elif choix == "..":
+                    nouveau_chemin = os.path.dirname(chemin)
+                    if os.path.isdir(nouveau_chemin):
+                        chemin = nouveau_chemin
+                    else:
+                        print(" Impossible de remonter plus haut.")
+                elif choix.isdigit() and 1 <= int(choix) <= len(dossiers):
+                    chemin = os.path.join(chemin, dossiers[int(choix) - 1])
+                else:
+                    print("Choix invalide. Essayez encore.")
+
+            except Exception as e:
+                print(f"Erreur : {e}")
+    except ValueError as e:
+                print(f"Erreur : {e}")
+
+
+
+def naviguer_arborescence2():
+    print("\n Naviguer dans l'arborescence des répertoires ")
+
+    ip_input()
+
+    while True:
+        try: 
+            chemin = input("Saisissez le chemin (ex : C:/Massimo/Paris) : ").strip()
+            if not os.path.isdir(chemin):
+                raise ValueError("Le chemin indiqué n'existe pas ou n'est pas un dossier !")
+            print(f"\n Contenu de : {chemin}")
+
+            while True:
+                try:
+                    # Lister tout ce qu'il y a dans le dossier actuel
+                    contenu = os.listdir(chemin)
+
+                    # Séparer les dossiers et les fichiers
+                    fichiers = []
+                    dossiers = []
+
+                    for element in contenu: # Pour chaque élement qui se trouve dans contenu
+                        chemin_complet = os.path.join(chemin, element) # chemin complet correspond au chemin de départ jusqu'à élément sélectionner.
+                        if os.path.isfile(chemin_complet): # Si c'est un fichier, alors on l'ajoute à la liste "fichiers".
+                            fichiers.append(element) # Ajout de l'élément à la liste.
+                        elif os.path.isdir(chemin_complet): # Si c'est un dossier, alors on l'ajoute à la liste "dossiers".
+                            dossiers.append(element) # Ajout de l'élément à la liste.
+
+                    # Affichage du contenu
+                    print(f"\n Contenu de : {chemin}")
+                    print("\n========== DOSSIERS ==========")
+                    for index, nom_dossier in enumerate(dossiers): # Boucle for pour chaque dossier les numérotés.
+                        print(f"  {index + 1}. {nom_dossier}") # Afficher le numéro associé au dossier.
+
+                    print("\n========== FICHIERS ==========")
+                    for nom_fichier in fichiers: # Boucle for pour chaque dossier les numérotés.
+                        print(f"  - {nom_fichier}") # Afficher le fichier.
+
+                    # Afficher les options disponibles
+                    print("\n========== OPTIONS ==========")
+                    print("  numéro : Aller dans un sous-dossier")
+                    print("    ..   : Revenir au dossier précédent")
+                    print("    q    : Fermer l'explorateur")
+
+                    # Demander à l'utilisateur ce qu'il veut faire
+                    choix = input("\n👉 Que voulez-vous faire ? ").strip()
+
+                    if choix.isdigit(): # Si la valeur saisie est un chiffre entier positif.
+                        numero = int(choix) # Convertir la valeur par un entier.
+                        if 1 <= numero <= len(dossiers): # Si le numéro saisi est présent dans la liste énumérée.
+                            # Aller dans le sous-dossier choisi
+                            sous_dossier = dossiers[numero - 1]
+                            chemin = os.path.join(chemin, sous_dossier)
+                        else:
+                            print("Numéro de dossier invalide !")
+                    
+                    elif choix == "..":
+                        dossier_parent = os.path.dirname(chemin)
+                        if os.path.isdir(dossier_parent):
+                                chemin = dossier_parent
+                        else:
+                            print("⚠️ Vous êtes déjà tout en haut !")
+
+                    elif choix == "q":
+                        print("👋 Merci d'avoir utilisé l'explorateur. À bientôt !")
+                        break   # Quitte la boucle
+                            
+                    else:
+                        print("⚠️ Je n'ai pas compris votre choix. Essayez encore.")
+
+                except Exception as erreur:
+                    print(f"🚨 Une erreur est survenue : {erreur}")
+        except ValueError as erreur:
+                print(f"Une erreur s'est produite : {erreur}")
+
+
+
+
+def lister_dossier_fichier():
+    print("\nLister les DOSSIERS, les SOUS-DOSSIERS et les FICHIERS")
+
+    ip_input()
+
+    while True:
+        try:
+            chemin = input("Saisissez le chemin à lister (ex : C:/Massimo/Paris) : ").strip()
+            if not os.path.isdir(chemin):
+                raise ValueError("Le chemin est incorrect ou n'existe pas !")
+
+            dossiers = []
+            sous_dossiers = []
+            fichiers = []
+
+            # Parcours récursif de l'arborescence
+            for racine, dirs, files in os.walk(chemin):
+                if racine == chemin:
+                    # Dossiers directement dans le dossier principal
+                    for d in dirs:
+                        dossiers.append(os.path.join(racine, d))
+                else:
+                    # Sous-dossiers
+                    for d in dirs:
+                        sous_dossiers.append(os.path.join(racine, d))
+                # Fichiers
+                for f in files:
+                    fichiers.append(os.path.join(racine, f))
+
+            # Affichage clair et séparé
+            print(f"\n📁 Dossiers dans {chemin} :")
+            for d in dossiers:
+                print(f" - {d}")
+
+            print(f"\n📂 Sous-dossiers :")
+            for sd in sous_dossiers:
+                print(f" - {sd}")
+
+            print(f"\n📄 Fichiers :")
+            for f in fichiers:
+                print(f" - {f}")
+
+        except ValueError as e:
+            print(f"Erreur : {e}")
+
+        except Exception as e:
+            print(f"Erreur inattendue : {e}")
+            continue
+
+        else:
+            break
+
+def sauvegarder_fichier_dossier():
+    print("\n📤 COPIE FICHIER/DOSSIER EN LOCAL VERS path_ftp\n")
+    
+    # Paramètres de connexion FTP/SFTP
+    ftp_host = '127.0.0.1'
+    ftp_login = 'MARSEILLE'
+    ftp_password = 'Marseille'
+    path_ftp = "C:/REMOTE_PROJET/MARSEILLE"  # Destination fixe
+
+    print("Connexion FTP locale (affichage du message FTP)")
+    connexion = FTP(ftp_host, ftp_login, ftp_password)
+    print(connexion.getwelcome())
+
+    # Demander IP et infos SFTP
+    #ip_input()
+
+    username = ftp_login
+    password = ftp_password
+
+    # Vérifier que le dossier distant existe
+    if not os.path.isdir(path_ftp):
+        print(f"❌ Le dossier de destination '{path_ftp}' n'existe pas.")
+        return
+
+    try:
+        choix = input("Souhaitez-vous copier un fichier (1) ou un dossier (2) ? : ").strip()
+        if choix not in ("1", "2"):
+            raise ValueError("❌ La valeur saisie n'est pas 1 ou 2 !")
+
+        source = input("Entrez le chemin COMPLET du fichier ou du dossier à copier : ").strip()
+        if not os.path.exists(source):
+            raise ValueError("❌ Le chemin SOURCE est incorrect !")
+
+        # Définir le chemin de destination automatiquement
+        nom_element = os.path.basename(source)
+        destination = os.path.join(path_ftp, nom_element)
+
+        if choix == "1":
+            shutil.copy2(source, destination)
+            print(f"✅ Fichier copié avec succès vers : {destination}")
+        else:
+            if os.path.exists(destination):
+                print(f"⚠️ Le dossier '{destination}' existe déjà. Suppression avant copie.")
+                shutil.rmtree(destination)
+            shutil.copytree(source, destination)
+            print(f"✅ Dossier copié avec succès vers : {destination}")
+
+    except ValueError as ve:
+        print(f"Erreur : {ve}")
+    except Exception as e:
+        print(f"❌ Une erreur s'est produite : {e}")
+
+
+
+
+
+
+def gestion_fichier():
+
+ while True : # Tant que c'est vrai.
+        
+        print("============================================================") # Afficher le choix.
+        print("Que souhaitez-vous faire ?") # Afficher le choix.
+        print("")
+        print("1 : COPIER un fichier ou un dossier.") # Afficher le choix.
+        print("2 : RENOMMER un fichier ou un dossier.") # Afficher le choix.
+        print("3 : CRÉER un fichier ou un dossier.") # Afficher le choix.
+        print("4 : DÉPLACER un fichier ou un dossier.") # Afficher le choix.
+        print("5 : SUPPRIMER un fichier ou un dossier.") # Afficher le choix.
+        print("6 : SAUVEGARDER un fichier ou un dossier (depuis le client).") # Afficher le choix.
+        print("7 : RESTAURER un fichier ou un dossier (depuis le serveur).") # Afficher le choix.
+        print("8 : QUITTER.") # Afficher le choix.
+
+        choix = input("Selectionner l'action que vous souhaitez faire : ") # Demander le choix.
+
+        if choix == "1" : # Scanner un port specifique.
+             copier_fichier_dossier()
+        elif choix == "2" : # Scanner une plage de port.
+             renommer_fichier_dossier()
+        elif choix == "3" : # Scanner tous les ports simultanement.
+             creer_fichier_dossier()
+        elif choix == "4" : # Scanner tous les ports simultanement.
+             deplacer_fichier_dossier()
+        elif choix == "5" : # Scanner tous les ports simultanement.
+             supprimer_fichier_dossier()
+        elif choix == "6" : # Scanner tous les ports simultanement.
+             sauvegarder_fichier_dossier()
+
+        #elif choix == "7" : # Scanner tous les ports simultanement.
+
+        #elif choix == "8" : # Quitter le module.
+
+          #break
+             
+#if __name__ == "__main__":
+gestion_fichier()
+
+     
+
+
