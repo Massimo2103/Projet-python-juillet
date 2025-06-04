@@ -1,0 +1,338 @@
+# ==============================
+# Projet Python ESGI - New_Tech
+# Système de gestion de fichiers multi-sites avec FTP et rôles
+# Réalisé pour un niveau débutant avec commentaires pédagogiques
+# ==============================
+
+import os              # Pour les opérations système : fichiers, répertoires
+import shutil          # Pour copier, déplacer, supprimer des fichiers/dossiers
+import socket          # Pour valider des adresses IP et le scan réseau
+import getpass         # Pour saisir le mot de passe masqué à l'écran
+import datetime        # Pour la date/heure (journalisation)
+import threading       # Pour le scan réseau/thread (bonus)
+# Le module ftplib peut être utilisé si tu veux vraiment faire du FTP distant
+# Ici, on simule le FTP par des dossiers locaux.
+
+# ==============================
+# Définition des utilisateurs (login/mot de passe/rôle/région)
+USERS = {
+    "superadmin":      {"password": "super2025",      "role": "superadmin", "region": "Paris"},
+    "admin_rennes":    {"password": "rennes2025",     "role": "admin",      "region": "Rennes"},
+    "admin_marseille": {"password": "marseille2025",  "role": "admin",      "region": "Marseille"},
+    "admin_grenoble":  {"password": "grenoble2025",   "role": "admin",      "region": "Grenoble"}
+}
+
+LOCAL_ROOT = "./Donnees"        # Dossier de base où sont stockées toutes les données par région
+FTP_ROOT   = "./FTP_Backup"     # Dossier qui simule le serveur FTP (sauvegardes versionnées)
+LOG_FILE   = "journal.log"      # Fichier de log de toutes les actions
+
+def log_action(user, action):
+    """
+    Enregistre une action dans le fichier journal.log avec la date, l'heure et le nom d'utilisateur.
+    """
+    with open(LOG_FILE, "a") as f:
+        f.write(f"[{datetime.datetime.now()}] [{user}] {action}\n")
+
+def chemin_region(region):
+    """
+    Retourne le chemin absolu vers le dossier de la région.
+    """
+    return os.path.join(LOCAL_ROOT, region)
+
+def chemin_client(region, client):
+    """
+    Retourne le chemin absolu vers un client dans une région.
+    """
+    return os.path.join(LOCAL_ROOT, region, client)
+
+def chemin_ftp(region, client):
+    """
+    Retourne le chemin absolu vers le dossier FTP du client.
+    """
+    return os.path.join(FTP_ROOT, region, client)
+
+def verifier_chemin(path):
+    """
+    Crée le chemin (dossier) s'il n'existe pas déjà.
+    """
+    os.makedirs(path, exist_ok=True)
+def login():
+    """
+    Permet à l'utilisateur de se connecter avec un nom d'utilisateur et un mot de passe masqué.
+    Retourne le nom d'utilisateur et ses infos (rôle, région) si la connexion réussit.
+    """
+    print("\n====== Connexion à l'interface New_Tech ======")
+    username = input("Nom d'utilisateur : ")
+    password = getpass.getpass("Mot de passe : ")
+    user = USERS.get(username)
+    if user and user["password"] == password:
+        print(f"✅ Connecté en tant que {username} ({user['role']})\n")
+        return username, user
+    else:
+        print("❌ Identifiants incorrects. Veuillez réessayer.\n")
+        return login()
+
+def lister_arborescence(region):
+    """
+    Affiche tous les dossiers et fichiers de la région, sous forme arborescente.
+    """
+    base = chemin_region(region)
+    if not os.path.exists(base):
+        print(f"Aucune donnée pour la région {region}.")
+        return
+    for root, dirs, files in os.walk(base):
+        niveau = root.replace(base, '').count(os.sep)
+        indent = ' ' * 4 * niveau
+        print(f"{indent}[D] {os.path.basename(root)}/")
+        for f in files:
+            print(f"{indent}    [F] {f}")
+
+def creer_client(region):
+    """
+    Crée un répertoire pour un nouveau client dans la région donnée.
+    """
+    nom = input("Nom du nouveau client : ")
+    chemin = chemin_client(region, nom)
+    verifier_chemin(chemin)
+    print("✅ Client ajouté avec succès :", chemin)
+    log_action(region, f"Création du client {nom}")
+    return nom
+def creer_element(region):
+    """
+    Créer un fichier ou un dossier dans un répertoire client.
+    """
+    client = input("Nom du client (ex : client1) : ")
+    type_choix = input("Créer un fichier (1) ou un dossier (2) ? : ")
+    nom = input("Nom du fichier ou dossier (ex: rapport.txt ou archives) : ")
+    base = chemin_client(region, client)
+    verifier_chemin(base)  # Créé le dossier client s'il n'existe pas
+    chemin = os.path.join(base, nom)
+    if type_choix == "1":
+        with open(chemin, "w") as f:
+            f.write("")  # Créé un fichier vide
+        print("✅ Fichier créé :", chemin)
+        log_action(region, f"Création du fichier {chemin}")
+    else:
+        os.makedirs(chemin, exist_ok=True)
+        print("✅ Dossier créé :", chemin)
+        log_action(region, f"Création du dossier {chemin}")
+
+def copier_element(region):
+    """
+    Copier un fichier ou un dossier d'un client dans un autre chemin du même client.
+    """
+    client = input("Nom du client : ")
+    src = input("Chemin RELATIF à copier (ex: rapport.txt ou dossier) : ")
+    dest = input("NOUVEAU nom ou chemin RELATIF de destination : ")
+    base = chemin_client(region, client)
+    source = os.path.join(base, src)
+    destination = os.path.join(base, dest)
+    try:
+        if os.path.isdir(source):
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination)
+        print("✅ Copie réussie")
+        log_action(region, f"Copie de {source} vers {destination}")
+    except Exception as e:
+        print("❌ Erreur lors de la copie :", e)
+
+def deplacer_element(region):
+    """
+    Déplacer un fichier ou dossier d'un client vers un autre emplacement dans le même client.
+    """
+    client = input("Nom du client : ")
+    src = input("Chemin RELATIF actuel (ex: rapport.txt ou dossier) : ")
+    dest = input("NOUVEAU chemin RELATIF (ex: archives/rapport.txt) : ")
+    base = chemin_client(region, client)
+    source = os.path.join(base, src)
+    destination = os.path.join(base, dest)
+    try:
+        shutil.move(source, destination)
+        print("✅ Déplacement réussi")
+        log_action(region, f"Déplacement de {source} vers {destination}")
+    except Exception as e:
+        print("❌ Erreur de déplacement :", e)
+
+def supprimer_element(region):
+    """
+    Supprime un fichier ou un dossier dans un répertoire client.
+    """
+    client = input("Nom du client : ")
+    cible = input("Chemin RELATIF à supprimer (ex: rapport.txt ou dossier) : ")
+    base = chemin_client(region, client)
+    chemin = os.path.join(base, cible)
+    try:
+        if os.path.isdir(chemin):
+            shutil.rmtree(chemin)
+        else:
+            os.remove(chemin)
+        print("✅ Suppression réussie")
+        log_action(region, f"Suppression de {chemin}")
+    except Exception as e:
+        print("❌ Erreur :", e)
+
+def renommer_element(region):
+    """
+    Renomme un fichier ou dossier dans un répertoire client.
+    """
+    client = input("Nom du client : ")
+    ancien = input("Chemin RELATIF actuel (ex: rapport.txt) : ")
+    nouveau = input("NOUVEAU nom ou chemin RELATIF (ex: rapport_2025.txt) : ")
+    base = chemin_client(region, client)
+    source = os.path.join(base, ancien)
+    destination = os.path.join(base, nouveau)
+    try:
+        os.rename(source, destination)
+        print("✅ Renommage réussi")
+        log_action(region, f"Renommage de {source} en {destination}")
+    except Exception as e:
+        print("❌ Erreur :", e)
+def sauvegarder_version(region):
+    """
+    Sauvegarde un fichier d'audit d'un client dans le FTP simulé avec gestion des versions (ex : audit.12, audit.13).
+    """
+    client = input("Nom du client : ")
+    nom_fichier = input("Nom du fichier d'audit à sauvegarder (ex: audit.txt) : ")
+    base_local = chemin_client(region, client)
+    fichier_source = os.path.join(base_local, nom_fichier)
+    if not os.path.isfile(fichier_source):
+        print("❌ Le fichier n'existe pas :", fichier_source)
+        return
+
+    # Déterminer la version suivante à utiliser (ex: audit.12 s'il existe audit.11)
+    dossier_ftp = chemin_ftp(region, client)
+    verifier_chemin(dossier_ftp)
+    nom_base = os.path.splitext(nom_fichier)[0]
+    ext = os.path.splitext(nom_fichier)[1]
+    version = 1
+    while True:
+        version_file = f"{nom_base}.{version}{ext}"
+        if not os.path.exists(os.path.join(dossier_ftp, version_file)):
+            break
+        version += 1
+    fichier_dest = os.path.join(dossier_ftp, version_file)
+    shutil.copy2(fichier_source, fichier_dest)
+    print(f"✅ Sauvegarde versionnée : {fichier_dest}")
+    log_action(region, f"Sauvegarde {fichier_source} => {fichier_dest}")
+
+def restaurer_version(region):
+    """
+    Restaure une version de fichier d'audit depuis le FTP simulé (seul le superadmin y a accès).
+    """
+    client = input("Nom du client : ")
+    dossier_ftp = chemin_ftp(region, client)
+    if not os.path.isdir(dossier_ftp):
+        print("❌ Aucun fichier sauvegardé pour ce client.")
+        return
+    fichiers = [f for f in os.listdir(dossier_ftp) if os.path.isfile(os.path.join(dossier_ftp, f))]
+    if not fichiers:
+        print("❌ Aucun fichier à restaurer.")
+        return
+    print("\nFichiers sauvegardés disponibles :")
+    for idx, f in enumerate(fichiers):
+        print(f" {idx+1}. {f}")
+    try:
+        choix = int(input("Numéro du fichier à restaurer : ")) - 1
+        if choix < 0 or choix >= len(fichiers):
+            print("Choix invalide.")
+            return
+        fichier_choisi = fichiers[choix]
+        base_local = chemin_client(region, client)
+        verifier_chemin(base_local)
+        dest = os.path.join(base_local, fichier_choisi)
+        shutil.copy2(os.path.join(dossier_ftp, fichier_choisi), dest)
+        print(f"✅ Fichier restauré dans le dossier du client : {dest}")
+        log_action(region, f"Restauration {fichier_choisi} vers {dest}")
+    except ValueError:
+        print("Entrée invalide.")
+def scan_reseau():
+    """
+    Scan les adresses IP d'un réseau local (exemple : 192.168.1.0/24)
+    et indique quelles IP répondent au ping.
+    """
+    base_ip = input("Saisir la base du réseau à scanner (ex: 192.168.1) : ")
+    debut = int(input("Début de la plage (ex : 1) : "))
+    fin = int(input("Fin de la plage (ex : 10) : "))
+
+    print("Début du scan...")
+    resultats = []
+
+    def ping(ip):
+        # Pour Windows utiliser '-n 1', pour Linux/Mac '-c 1'
+        response = os.system(f"ping -n 1 -w 200 {ip} > NUL")
+        if response == 0:
+            print(f"✔️ {ip} est UP")
+            resultats.append(ip)
+
+    threads = []
+    for i in range(debut, fin + 1):
+        ip = f"{base_ip}.{i}"
+        t = threading.Thread(target=ping, args=(ip,))
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()
+    print(f"Scan terminé. IP actives : {resultats}")
+def menu(utilisateur, info):
+    """
+    Menu principal interactif, toutes les fonctionnalités du projet y sont accessibles.
+    """
+    region = info["region"]
+    role = info["role"]
+
+    while True:
+        print("\n============== MENU PRINCIPAL ==============")
+        print("1. Lister les fichiers et dossiers")
+        print("2. Créer un client")
+        print("3. Créer un fichier ou dossier")
+        print("4. Copier un fichier ou dossier")
+        print("5. Déplacer un fichier ou dossier")
+        print("6. Supprimer un fichier ou dossier")
+        print("7. Renommer un fichier ou dossier")
+        print("8. Sauvegarder un fichier d'audit (versionné, vers FTP)")
+        if role == "superadmin":
+            print("9. Restaurer un fichier d'audit depuis le FTP")
+        print("10. Scanner le réseau (bonus)")
+        print("0. Quitter\n")
+
+        choix = input("Votre choix : ")
+
+        if choix == "1":
+            lister_arborescence(region)
+            log_action(utilisateur, "Liste arborescence")
+        elif choix == "2":
+            creer_client(region)
+            log_action(utilisateur, "Ajout client")
+        elif choix == "3":
+            creer_element(region)
+            log_action(utilisateur, "Création fichier/dossier")
+        elif choix == "4":
+            copier_element(region)
+            log_action(utilisateur, "Copie")
+        elif choix == "5":
+            deplacer_element(region)
+            log_action(utilisateur, "Déplacement")
+        elif choix == "6":
+            supprimer_element(region)
+            log_action(utilisateur, "Suppression")
+        elif choix == "7":
+            renommer_element(region)
+            log_action(utilisateur, "Renommage")
+        elif choix == "8":
+            sauvegarder_version(region)
+            log_action(utilisateur, "Sauvegarde versionnée FTP")
+        elif choix == "9" and role == "superadmin":
+            restaurer_version(region)
+            log_action(utilisateur, "Restauration FTP")
+        elif choix == "10":
+            scan_reseau()
+            log_action(utilisateur, "Scan réseau")
+        elif choix == "0":
+            print("👋 Déconnexion. À bientôt !")
+            break
+        else:
+            print("⚠️ Option non reconnue ou non autorisée.")
+if __name__ == "__main__":
+    utilisateur, infos = login()  # Authentification utilisateur
+    menu(utilisateur, infos)      # Lancement du menu principal
