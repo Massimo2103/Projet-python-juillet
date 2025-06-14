@@ -1,0 +1,333 @@
+import socket # Import du module socket
+import time # Import du module time
+import datetime # Import du module datetime
+import os # Import du module os
+from concurrent.futures import ThreadPoolExecutor, as_completed # Import du module (éxecution simultanée de threads) avec récupération de résultats.
+
+
+def ip_valide(Hote): # Définition de l'adresse IP
+    try: # Essaye
+        socket.inet_aton(Hote) # Convertir l'adresse IP en binaire.
+        print("L'adresse IP "+ str(Hote) +" est valide.") # Afficher le message si l'adresse IP est valide.
+        return 0 # Retourner la valeur 0.
+    except socket.error: # Interception de l'erreur lié au réseau.
+        print("Erreur : L'adresse IP "+ str(Hote) +" n'est pas valide.") # Afficher le message si l'adresse IP n'est pas valide.
+        return 1 # Retourner la valeur 1.
+    
+def ip_input(): # Définition demande et ping de l'adresse IPV4.
+
+    Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+    Response = ip_valide(Hote) # Vérification de la validité de l'adresse IPV4.
+    if Response == 0: # Si la défnition précendente renvoie la valeur 0.
+        Response = os.system("ping -n 1 " + Hote ) # Ping avec 1 pacquet vers l'adresse IP.
+
+        if Response == 0: # Si le ping réussi.
+            return Hote # Retourner l'adresse IP de l'équipement.
+        
+        else: # Sinon
+            print ("") # Afficher ligne vide.
+            print("Adresse IP incorrect! ") # Afficher message d'erreur.
+            return ip_input() # Demander l'adresse IPV4 valide.
+        
+    else: # Sinon
+        print ("") # Afficher ligne vide.
+        print("Adresse IP incorrect ou PING échoué ! ") # Afficher message d'erreur.
+        return ip_input() # Demander l'adresse IPV4 valide.
+
+
+def port_specifique(Hote, Port, Techno): # Définition pour le port indivuduel.
+
+    now = datetime.datetime.now().date() # Récupérer la date actuelle.
+    now1 = datetime.datetime.now().time() # Récupérer l'heure actuelle.
+    print("Date :", now.strftime('%A %d %B %y')) # Afficher la date au format lisible.
+    print("Horaire :", now1.strftime('%H:%M:%S')) # Afficher l'heure au format lisible.
+
+    filename = f"scan_de_port_{now.strftime('%d-%m-%Y')}____{now1.strftime('%H-%M-%S')}.txt" # Création d'un fichier scan_de_port avec la date et l'heure du jour.
+    f = open(filename, 'w', encoding="utf-8") # Ouverture du fichier concerné.
+
+    f.write("La date : " + str(now) + "\n") # Ecriture de la date dans le fichier.
+    f.write("L'heure : " + now1.strftime('%H:%M:%S') + "\n") # Ecriture de l'heure dans le fichier.
+    f.write("Adresse IP de l'équipement : " + Hote + "\n") # Ecriture de l'adresse IP dans le fichier.
+    f.write('+-----------+---------------+\n') # Ecriture dans le fichier.
+    f.write('| Port      |   État        |\n') # Ecriture dans le fichier.
+    f.write('+-----------+---------------+\n') # Ecriture dans le fichier.
+    
+
+    while True: # Tant que c'est vrai.
+        start = None # Initialisation de la variable start.
+        try: # Essayer
+
+            if not str(Port).isdigit(): # Si le port n'est pas un chiffre .
+                raise ValueError("La valeur saisie n'est pas un chiffre entier positif ! ") # Arrêt de l'éxecution et déclaration de valueError.
+            Port = int(Port) # La valeur du port est numérique.
+            if Port < 1 or Port > 65535: # Si le port est inférieur à 1 ou supérieur à 65535.
+                raise ValueError("Le port doit être compris entre 1 et 65535 ! ") # Arrêt de l'éxecution et déclaration de valueError.
+            elif Techno != "1" and Techno != "2": # Si la technologie n'est pas TCP ni UDP.
+                raise ValueError("Protocole non reconnu ! ") # Arrêt de l'éxecution et déclaration de valueError.
+            
+            start = time.time() # Enregistrement de l'heure actuelle dans la variable start.
+
+            if Techno == "1":  # Si le protocole est TCP.                
+                f.write("==> 1ère version en TCP.....\n") # Ecriture dans le fichier la ligne TCP.
+                connexion_principale = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Création d'une connexion réseau en IPV4 TCP avec l'hôte.
+                connexion_principale.settimeout(1) # Patienter pendant 1 seconde avant d'abandonner.
+                connexion_principale.connect((Hote, Port)) # Ouvrir une connexion avec l'hôte et le port concerné.
+                print("Le port", Port, "est ouvert") # # Afficher le message avec le port et l'état ouvert.
+                f.write("==> Le port " + str(Port) + " : ouvert\n") # Ecriture du message dans le fichier.
+                
+            elif Techno == "2":  # Si le protocole est UDP.
+                f.write("==> 1ère version en UDP.....\n") # Ecriture dans le fichier la ligne UDP.
+                connexion_principale = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # Création d'une connexion réseau en IPV4 UDP avec l'hôte.
+                connexion_principale.settimeout(0.2) # Patienter pendant 0.2 seconde avant d'abandonner.
+                connexion_principale.connect((Hote, Port)) # Ouvrir une connexion avec l'hôte et le port concerné.
+                print("Le port", Port, "est ouvert") # Afficher le message avec le port et l'état ouvert.
+                f.write("==> Le port " + str(Port) + " : ouvert\n") # Ecriture du message dans le fichier.
+
+        except ValueError as e: # Exception sur une erreur de valeur.
+            message_erreur = str(e) # Convertir l'erreur en chaîne de caractère.
+            print(f"Erreur : {message_erreur}") # Afficher le message d'erreur lié à l'erreur rencontrée.
+
+            if "Le port doit être compris entre 1 et 65535 !" in message_erreur: # Si le message contient "Le port doit être compris entre 1 et 65535 !"."
+                print("Recommencer la procédure !") # Afficher le message.
+                break # Sortir de la boucle.
+            
+            elif "La valeur saisie n'est pas un chiffre entier positif !" in message_erreur: # Si le message contient "La valeur saisie n'est pas un chiffre entier positif !".
+                print("Recommencer la procédure !") # Afficher le message.
+                break # Sortir de la boucle.
+            
+            elif "Protocole non reconnu !" in message_erreur: # Si le message contient "Protocole non reconnu !".
+                print("Recommencer la procédure !") # Afficher le message.
+                break # Sortir de la boucle.
+
+        except Exception as e: # Exception sur n'importe quelle erreur.
+            print("Le port", Port, "est fermé") # Afficher le message le port n° est fermé.
+            f.write("Le port " + str(Port) + " : fermé\n") # Ecrire dans le fichier l'état du port.
+            try: # Essayer
+                connexion_principale.close() # Fermer la connexion.
+            except: # Excepetion (erreur)
+                pass # Passer
+
+        finally : # Enfin        
+            if start is not None: # Si start est défini.
+                end = time.time() # Noter le temps dans la variable end.
+                print("Durée du scan :", round(end - start, 2), "secondes" "\n") # Afficher la durée du scan et sauter une ligne.
+                f.write("Le scan du port a duré : " + str(round(end - start, 2)) + " secondes\n") # Ecrire dans le fichier la durée du scan.            
+            
+            if 'connexion_principale' in locals(): # Si la connexion est ouverte.
+                connexion_principale.close() # Fermeture de la connexion.
+
+            f.close() # Fermeture du fichier.
+            break  # Sortir de la boucle après écriture.
+
+
+def plage_de_port(Hote, Debut, Fin, Techno): # Définition pour la plage de port.
+
+    now = datetime.datetime.now().date() # Récupérer la date actuelle.
+    now1 = datetime.datetime.now().time() # Récupérer l'heure actuelle.
+    print("Date :", now.strftime('%A %d %B %y')) # Afficher la date au format lisible.
+    print("Horaire :", now1.strftime('%H:%M:%S')) # Afficher l'heure au format lisible.
+
+    filename = f"plage_de_ports_{now.strftime('%d-%m-%Y')}____{now1.strftime('%H-%M-%S')}.txt" # Création d'un fichier plage_de_ports avec la date et l'heure du jour.
+    f = open(filename, 'w', encoding="utf-8") # Ouverture du fichier concerné.
+
+    f.write("La date :" + str(now) + "\n") # Ecriture de la date dans le fichier.
+    f.write("L'heure :" + now1.strftime('%H:%M:%S') + "\n") # Ecriture de l'heure dans le fichier.
+    f.write("Adresse IP de l'équipement : " + Hote + "\n") # Ecriture de l'adresse IP dans le fichier.
+    f.write('+-----------+---------------+\n') # Ecriture dans le fichier.
+    f.write('| Port      |   État        |\n') # Ecriture dans le fichier.
+    f.write('+-----------+---------------+\n') # Ecriture dans le fichier.
+    
+    while True: # Tant que c'est vrai.
+        try: # Essayer
+            if not str(Debut).isdigit(): # Si le port de début n'est pas un chiffre.
+                raise ValueError("La valeur DEBUT saisie n'est pas un chiffre entier positif ! ") # Arrêt de l'éxecution et déclaration de valueError.
+            if not str(Fin).isdigit(): # Si le port de fin n'est pas un chiffre.
+                raise ValueError("La valeur FIN saisie n'est pas un chiffre entier positif ! ") # Arrêt de l'éxecution et déclaration de valueError.
+            Debut = int(Debut) # La valeur début est numérique.
+            Fin = int(Fin) # La valeur début est numérique.
+            if Debut < 1 or Fin > 65535: # Si Début est inférieur à 1 ou supérieur à 65535.
+                raise ValueError("Les ports doivent être compris entre 1 et 65535.") # Arrêt de l'éxecution et déclaration de valueError.
+            elif Debut > Fin: # Si début est supérieur à fin.
+                raise ValueError("Le port de fin ne peut pas être inférieur au port de début.") # Arrêt de l'éxecution et déclaration de valueError.
+            elif Techno != "1" and Techno != "2": # Si le protocole n'est pas TCP ni UDP.
+                raise ValueError("Protocole non reconnu, choisissez 1 pour TCP ou 2 pour UDP.") # Arrêt de l'éxecution et déclaration de valueError.
+            
+            break # Quitter la boucle si aucune erreur.
+
+        except ValueError as e: # Exception sur une erreur de valeur.
+
+            message_erreur = str(e) # Convertir l'erreur en chaîne de caractère.
+            print(f"Erreur : {message_erreur}") # Afficher le message d'erreur lié à l'erreur rencontrée.
+
+            if "La valeur DEBUT saisie n'est pas un chiffre entier positif !" in message_erreur: # Si le message contient "Le port doit être compris entre 1 et 65535 !"."
+                Debut = input("Quel est le premier port de la plage ? : ") # Redemander le nuémro de port de début.            
+            elif "La valeur FIN saisie n'est pas un chiffre entier positif !" in message_erreur: # Si le message contient "La valeur saisie n'est pas un chiffre entier positif !".
+                Fin = input("Quel est le dernier port de la plage ? : ") # Redemander le nuémro de port de fin.
+            elif "Les ports doivent être compris entre 1 et 65535." in message_erreur: # Si le message contient "Protocole non reconnu !".
+                Debut = input("Quel est le premier port de la plage ? : ") # Redemander le nuémro de port de début.
+                Fin = input("Quel est le dernier port de la plage ? : ") # Redemander le nuémro de port de fin.            
+            elif "Le port de fin ne peut pas être inférieur au port de début." in message_erreur: # Si le message contient "Protocole non reconnu !".
+                Fin = input("Quel est le dernier port de la plage ? : ") # Redemander le nuémro de port de fin.
+            elif "Protocole non reconnu, choisissez 1 pour TCP ou 2 pour UDP." in message_erreur: # Si le message contient "Protocole non reconnu !".
+                Techno = input("Est-ce du TCP (choix 1) ou de l'UDP (choix 2) ? : ") # Redemander le protoocle a utilisé.
+                       
+    resultat_all_ports = [] # Création de la liste Resultat_all_ports.
+    if Techno == "1" : # Si le protocole est TCP.
+        f.write("==> Protocole utilisé : TCP\n") # Ecriture du message dans le fichier.
+    elif Techno == "2" : # Si le protocole est UDP
+        f.write("==> Protocole utilisé : UDP\n") # Ecriture du message dans le fichier.
+
+    def verifier(port): # Définition pour vérifier l'état des ports.
+        try: # Essayer
+            if Techno == "1": # Si le protocole est TCP.
+                connexion_principale = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Création d'une connexion réseau en IPV4 TCP avec l'hôte.
+                connexion_principale.settimeout(1) # Patienter pendant 1 seconde avant d'abandonner.
+                connexion_principale.connect((Hote, port)) # Ouvrir une connexion avec l'hôte et le port concerné.
+                print(" Le port:", port, "est ouvert") # Afficher le message avec le port et l'état ouvert.
+                return (port, "==> ouvert") # Retourner le numéro de port avec son état (ouvert).
+
+            elif Techno == "2": # Si le protocole est UDP.
+                connexion_principale = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # Création d'une connexion réseau en IPV4 UDP avec l'hôte.
+                connexion_principale.settimeout(1) # Patienter pendant 1 seconde avant d'abandonner.
+                connexion_principale.connect((Hote, port)) # Ouvrir une connexion avec l'hôte et le port concerné.
+                print(" Le port:", port, "est ouvert") # Afficher le message avec le port et l'état ouvert.
+                return (port, "==> ouvert") # Retourner le numéro de port avec son état (fermé).
+            
+        except Exception as e: # Exception sur n'importe quelle erreur.
+            print(f"Le port {port} est fermé") # Afficher le message le port n° est fermé.
+            return (port, "fermé") # Retourner le numéro de port avec son état (fermé).
+        
+        finally: # Enfin
+                connexion_principale.close() # Fermer la connexion.
+
+    start = time.time() # Enregistrement de l'heure actuelle dans la variable start.
+
+    with ThreadPoolExecutor(max_workers=300) as executor: # Avec un gestionnaire de Thread de 300 Threads .
+        futures = [executor.submit(verifier, port) for port in range(Debut, Fin + 1)] # Lancement d'un thread pour chaque port dans la definition vérifier(port) et stoké ma tâche dans la liste future.
+
+        for future in as_completed(futures): # Pour chaque état dans la liste "futures".
+            port, etat = future.result() # Insérer les valeurs dans les variables port et état.
+            resultat_all_ports.append((port, etat)) # Ajouter dans la liste resultat_all_port l'état de chaque port analyser.
+
+    resultat_all_ports.sort(key=lambda x: x[0]) # Trier la liste par numéro de port (ordre croissant).
+
+    for port, etat in resultat_all_ports: # Pour chaque port et état dans la liste resultats_all_ports.
+        f.write(f"{str(port).ljust(10)} : {etat}\n") # Ecrire dans le fichier le port, son état et sauter une ligne (ligne de 10 caractères).
+
+    end = time.time() # Noter le temps dans la variable end.
+    f.write("===> Le scan de la plage de ports a duré : " + str(round(end - start, 2)) + " secondes\n") # Ecrire dans le fichier la durée du scan. 
+    print("Le scan de la plage de ports a duré :", round(end - start, 2), "secondes" "\n") # Afficher la durée du scan et sauter une ligne.
+
+    f.close() # Fermer le fichier.
+
+
+def tous_les_ports(Hote, Techno): # Définition pour tous les ports simultanément.
+
+    now = datetime.datetime.now().date() # Récupérer la date actuelle.
+    now1 = datetime.datetime.now().time() # Récupérer l'heure actuelle.
+    print("Date :", now.strftime('%A %d %B %y')) # Afficher la date au format lisible.
+    print("Horaire :", now1.strftime('%H:%M:%S')) # Afficher l'heure au format lisible.
+
+    filename = f"tous_les_ports_{now.strftime('%d-%m-%Y')}___{now1.strftime('%H-%M-%S')}.txt" # Création d'un fichier tous_les_ports avec la date et l'heure du jour.
+    f = open(filename, 'w', encoding="utf-8") # Ouverture du fichier concerné.
+
+    f.write("La date :" + str(now) + "\n") # Ecriture de la date dans le fichier.
+    f.write("L'heure :" + now1.strftime('%H:%M:%S') + "\n") # Ecriture de l'heure dans le fichier.
+    f.write("Adresse IP de l'équipement : " + Hote + "\n") # Ecriture de l'adresse IP dans le fichier.
+    f.write('+-----------+---------------+\n') # Ecriture dans le fichier.
+    f.write('| Port      |   État        |\n') # Ecriture dans le fichier.
+    f.write('+-----------+---------------+\n') # Ecriture dans le fichier.
+
+    while True: # Tant que c'est vrai.
+        try: # Essayer
+            if Techno != "1" and Techno != "2": # Si le protocol utilisé n'est pas TCP ni udp.
+                raise ValueError("Protocole non reconnu !") # Arrêt de l'éxecution et déclaration de valueError.
+            
+            break # Sortir de la boucle si tout est valide.
+
+        except ValueError as e: # Exception sur une erreur de valeur.
+            print(f"Erreur : {e}") # Afficher le message d'erreur.
+            Techno = input("Est-ce du TCP (choix 1) ou de l'UDP (choix 2) ? : ") # Demander le protocole valide à utilisé.
+
+    if Techno == "1": # Si le protoocole est TCP
+        f.write("==> Protocole utilisé : TCP\n") # Ecrire dans le fichier du protocole utilisé.
+    elif Techno == "2": # Si le protoocole est UDP.
+        f.write("==> Protocole utilisé : UDP\n") # Ecrire dans le fichier du protocole utilisé.
+
+    resultat_all_ports = []  # Création de la liste Resultat_all_ports.
+    start = time.time()  # Enregistrement de l'heure actuelle dans la variable start.
+
+    def verifier(port):  # Définition pour vérifier l'état d'un port.
+        try: # Essayer
+            if Techno == "1":  # Si le protocole utilisé est TCP
+                connexion_principale = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Connexion en TCP.
+                connexion_principale.settimeout(1) # Attendre 1 seconde avant d'abandonner la connexion.
+                connexion_principale.connect((Hote, port))  # Connexion à l'hôte avec le numéro de port.
+                print(" Le port:", port, "est ouvert") # Afficher le port ouvert.
+                return (port, "==> ouvert") # Retourner le port ouvert.
+            elif Techno == "2":  # Si le protocole utilisé est UDP.
+                connexion_principale = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # Connexion en UDP.
+                connexion_principale.settimeout(0.2) # Attendre 0.2 seconde avant d'abandonner la connexion.
+                connexion_principale.connect((Hote, port)) # Connexion à l'hote avec le numéro de port.
+                print(" Le port:", port, "est ouvert") # Afficher le port ouvert.
+                return (port, "==> ouvert") # Retourné le port ouvert.
+        except Exception as e: # Exception des messages d'erreurs.
+            print(f"Le port {port} est fermé") # Affciher le port fermé.
+            return (port, "fermé") # Retourné le port fermé
+        finally: # Enfin.
+            connexion_principale.close()  # Fermer la connexion.
+
+    with ThreadPoolExecutor(max_workers=300) as executor: # Avec un gestionnaire de Thread de 300 Threads .
+        futures = [executor.submit(verifier,port) for port in range(1, 65536)] # Lancement d'un thread pour chaque port ( de 1 à 65535) dans la definition vérifier(port) et stoké ma tâche dans la liste future.
+        for ftr in as_completed(futures): # Pour chaque état dans la liste "futures".
+            resultat_all_ports.append(ftr.result()) # Ajouter dans la liste resultat_all_port l'état de chaque port analyser.
+    resultat_all_ports.sort(key=lambda x: x[0]) # Trier la liste par numéro de port (ordre croissant).
+
+    for port, etat in resultat_all_ports:  # Pour chaque port et état dans la liste resultats_all_ports.
+        f.write(f"{str(port).ljust(10)} : {etat}\n") # Ecrire dans le fichier le port, son état et sauter une ligne (ligne de 10 caractères).
+
+    end = time.time() # Noter le temps dans la variable end.
+    print("Le scan de tous les ports a duré :", end - start, "secondes") # Afficher la durée du scan et sauter une ligne.
+    f.write("===> Le scan de tous les ports a duré : " + str(end - start) + " secondes\n") # Ecrire dans le fichier la durée du scan. 
+    f.close() # Fermeture du fichier.
+
+
+def interaction_port(Hote): # Définition intéraction 
+
+    while True : # Tant que c'est vrai.
+
+        print("1 : Scanner un port specifique.") # Afficher le choix.
+        print("2 : Scanner une plage de port.") # Afficher le choix.
+        print("3 : Scanner tous les ports simultanement.") # Afficher le choix.
+        print("4 : Quitter le module.") # Afficher le choix.
+
+        choix = input("Selectionner l'action que vous souhaitez faire : ") # Demander le choix.
+
+        if choix == "1" : # Scanner un port specifique.
+             Port = input("Quel est le port concerné ? : ") # Demander le nuémro de port
+             Techno = input("Est-ce du TCP (choix 1) ou de l'UDP (choix 2) ? : ") # Demander TCP ou UDP
+
+             port_specifique(Hote, Port, Techno) # Appel de la définition de l'analyse du port spécifique.
+
+        elif choix == "2" : # Scanner une plage de port.
+             Debut = input("Quel est le premier port de la plage ? : ") # Demander le nuémro de port de début.
+             Fin = input("Quel est le dernier port de la plage ? : ") # Demander le nuémro de port de fin.
+             Techno = input("Est-ce du TCP (choix 1) ou de l'UDP (choix 2) ? : ") # Demander TCP ou UDP
+
+             plage_de_port(Hote, Debut, Fin, Techno) # Appel de la définition de l'analyse de la plage de ports.
+
+        elif choix == "3" : # Scanner tous les ports simultanement.
+             Techno = input("Est-ce du TCP (choix 1) ou de l'UDP (choix 2) ? : ") # Demander TCP ou UDP
+
+             tous_les_ports(Hote, Techno) # Appel de la définition de l'analyse de tous les ports.
+
+        elif choix == "4" : # Quitter le module.
+                break # Quitter la boucle .
+
+Hote=ip_input() # Appeler la fonction ip_input pour obtenir l'adresse IPV4.
+
+print("") # Affichage ligne vide.
+print("=========================================================") # Affichage ligne séparatrice.   
+print("") # Affichage ligne vide.
+
+interaction_port(Hote) # Appeler la fonction intéraction port en précisant l'adresse IPV4.
