@@ -1,0 +1,125 @@
+import os
+import shutil
+import datetime
+import getpass
+import socket
+
+from ftplib import FTP
+from unittest.mock import patch
+import os
+import socket
+import sys
+import shutil
+import time
+import datetime
+import getpass
+
+def logger_action(ip_client, user, action, chemin_source, chemin_destination):
+    #user = getpass.getuser()
+    date_heure = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    log_message = (
+        f"[{date_heure}] Utilisateur: {user} | "
+        f"IP: {ip_client} | Action: {action} | "
+        f"Source: {chemin_source} | Destination/Nouveau nom: {chemin_destination}\n"
+    )
+
+    # Crée un fichier log s'il n'existe pas déjà
+    with open("journal_operations.log", "a", encoding="utf-8") as log_file:
+        log_file.write(log_message)
+        
+        
+def ip_valide(Hote): # Définition de l'adresse IP
+    try: # Essaye
+        socket.inet_aton(Hote) # Convertir l'adresse IP en binaire.
+        print("L'adresse IP "+ str(Hote) +" est valide.") # Afficher le message si l'adresse IP est valide.
+        return 0 # Retourner la valeur 0.
+    except socket.error: # Interception de l'erreur lié au réseau.
+        print("Erreur : L'adresse IP "+ str(Hote) +" n'est pas valide.") # Afficher le message si l'adresse IP n'est pas valide.
+        return 1 # Retourner la valeur 1.
+    
+def ip_input(Hote): # Définition demande et ping de l'adresse IPV4.
+
+    #Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+    Response = ip_valide(Hote) # Vérification de la validité de l'adresse IPV4.
+    if Response == 0: # Si la défnition précendente renvoie la valeur 0.
+        Response = os.system("ping -n 1 " + Hote ) # Ping avec 1 pacquet vers l'adresse IP.
+
+        if Response == 0: # Si le ping réussi.
+            return Hote # Retourner l'adresse IP de l'équipement.
+        
+        else: # Sinon
+            print ("") # Afficher ligne vide.
+            print("Adresse IP incorrect! ") # Afficher message d'erreur.
+            return ip_input(Hote) # Demander l'adresse IPV4 valide.
+        
+    else: # Sinon
+        print ("") # Afficher ligne vide.
+        print("Adresse IP incorrect ou PING échoué ! ") # Afficher message d'erreur.
+        return ip_input(Hote) # Demander l'adresse IPV4 valide.
+
+
+def acceder_ftp(): # Définition accéder au serveur FTP.
+
+    try: # Essayer
+        user = 'MARSEILLE'
+        mdp = 'Marseille'
+        ftp = FTP()
+        ftp.connect('127.0.0.1', 21)  # Remplacer par l'IP et le port de ton serveur FTP
+        ftp.login(user, mdp)   # Remplacer par tes identifiants FTP
+        print("Connexion FTP réussie.")
+        
+        # Activer le mode passif si nécessaire
+        ftp.set_pasv(True)
+        
+        return ftp
+    except Exception as e:
+        print(f" Erreur de connexion FTP : {e}")
+        return None
+
+def copier_fichier_dossier(): # Définition pour copier un fichier ou dossier.
+
+    print("\nCopie FICHIER/DOSSIER ") # Afficher le message.
+     
+    while True : # Tant que c'est vrai
+        try: # Essayer
+                choix_server_hote = input("sur ftp (1) ou client (2) ? ") # Demande de connexion au FTP ou au client.
+                if choix_server_hote == "1" : # Si le choix est 1.
+                    acceder_ftp() # Lancer la définition acceder au FTP.
+                elif choix_server_hote == "2" : # Si le choix est 2.
+                    Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+                    ip_input(Hote) # Lancer la définition ip_input.
+                if choix_server_hote not in ("1", "2"): # Si le choix n'est ni 1 et 2.
+                    raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+                choix = input("Souhaitez-vous copier un fichier (1) ou un dossier (2) ? : ") # Demander s'il faut coper un fichier ou dossier.
+                if choix not in ("1", "2"): # Si le choix n'est ni 1 ni 2.
+                    raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+                source = input("Entrez le chemin COMPLET du fichier ou du dossier à copier (ex : C/Massimo/Paris.txt ou /remote_projet/ville/...): ").strip() # Demander le chemin source en retirant les espaces.
+                if not os.path.exists(source): # Si le chemin n'existe pas.
+                    raise ValueError("Le chemin SOURCE est incorrect ! ") # Arrêt de l'éxecution.
+                destination = input("Entrez le chemin COMPLET où coller le fichier ou le dossier avec le nom du fichier (ex : C/Massimo/Juillet/Paris.txt ou /remote_projet/ville/...)) : ").strip() # Demander le chemin destination en retirant les espaces.
+                dossier_parent = os.path.dirname(destination) # Extraire le chemin dossier.
+                if not os.path.isdir(dossier_parent): # Si le dossier n'existe pas.
+                    raise ValueError("Le chemin de DESTINATION est incorrect ! ") # Arrêt de l'éxecution.
+
+                if choix == "1": # Si le choix est 1.
+                    shutil.copy2(source, destination) # Copie le fichier source en conservant la date...
+                    print(f"Fichier copié avec succès vers : {destination} !") # Afficher le message.
+                    logger_action(Hote, "COPIE FICHIER", source, destination)
+                elif choix == "2": # Si le choix est 2.
+                    shutil.copytree(source, destination) # Copie le dossier source en conservant la date...
+                    print(f"Dossier copié avec succès vers : {destination} !") # Affciher le message.
+                    logger_action(Hote, "COPIE DOSSIER", source, destination)
+               
+        except ValueError as e: # En cas de Value Error.
+               message_erreur = str(e) # Convertir l'erreur en chaîne de caractère.
+               print(f"Erreur : {message_erreur}") # Afficher le message d'erreur.
+               
+        except Exception as e: # En cas d'erreur.
+               print(f"Erreur lors de la copie : {e}") # Afficher le message d'erreur.
+
+        else: # Sinon
+            continue # Continuer
+        
+        
+copier_fichier_dossier()
