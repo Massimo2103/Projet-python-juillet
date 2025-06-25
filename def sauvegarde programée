@@ -1,0 +1,102 @@
+def sauvegarde_programée2():
+    #print("\n IMPORTER FICHIER/DOSSIER DU CLIENT VERS SERVEUR FTP\n")
+
+    # === CONFIGURATION EN DUR ===
+    date_execution = datetime.datetime(2025, 6, 25, 15, 51)  # AAAA, MM, JJ, HH, MM
+    choix = "1"  # "1" pour un seul fichier, "2" pour plusieurs
+    Hote = "10.20.2.93" # Définit  l'adresse IP du poste.
+    chemin_local = "D:/log.txt" #Saisirle chemin source.
+    destination_ftp = "REMOTE_PROJET/MARSEILLE/" # Saisir la destination.
+
+    # Connexion FTP
+    ftp = acceder_ftp()
+    if ftp is None:
+        raise ValueError("Impossible de se connecter au serveur FTP.")
+
+    # Simulation de saisie IP pour ip_input()
+    with patch('builtins.input', return_value=Hote):
+        ip_result = ip_input(Hote)
+
+    if not ip_result:
+        raise ValueError("L'adresse IP est invalide ou injoignable.")
+
+
+    try: # Essayer
+        date_actuelle = datetime.datetime.now() # Définir la date actuelle
+        difference = (date_execution - date_actuelle).total_seconds() # Définir le délai antre la date actuelle et la date d'execution
+        if difference > 0: # Si la différence est supérieur à 0
+            #print(f"Attente jusqu'à {date_execution} pour lancer la sauvegarde...")
+            time.sleep(difference) # Attente le délai défini par "différence"
+        else: # Sinon
+            print("La date et/ou heure est dans le passé. La sauvegarde commence immédiatement.") # Afficher le message d'erreur
+
+        if choix == "1": # Si le choix est 1.
+            nom_fichier = os.path.basename(chemin_local) # Extrait le nom du fichier (avec extension) à partir du chemin complet.
+            fichiers_distant = ftp.nlst(destination_ftp) # Liste les fichiers présent sur le serveur FTP.
+
+            nom, ext = os.path.splitext(nom_fichier) # Spliter le nom et l'extension du fichier.
+
+            if 'v' in nom: # Si le nom du fichier contient la lettre V.
+                prefixe, version = nom.rsplit('v', 1) # Séparer le nom du fichier et le numéro de version.
+                if version.isdigit(): # Vérifier si le cartère qui suis le V est un chiffre.
+                    numero_version = int(version) # si c'est vrai, convertir la valeur (chiffre) en entier.
+                else: # Si ce n'est pas un chiffre.
+                    prefixe = nom # le préfixe équivaut au nom.
+                    numero_version = 1 # numéro de version vaut 1.
+            else: # Si le nom du fichier ne contient pas la lettre V.
+                prefixe = nom # le préfixe équivaut au nom.
+                numero_version = 1 # numéro de version vaut 1
+
+            while True: # Tant que c'est vrai
+                nouveau_nom = f"{prefixe}v{numero_version}{ext}" # Le nouveau nom est égal au préfixe suivi de v et du numéro de version.
+                if nouveau_nom not in fichiers_distant: # Si ce nouveau nom n'existe déjà pas.
+                    nom_fichier = nouveau_nom # le nom du fichier est égal au nouveau nom.
+                    break # Sortir de la boucle
+                else : # Sinon.
+                    numero_version += 1 # On incrémente de 1 le numéro de version.
+
+            with open(chemin_local, "rb") as f: # Ouvrir le fichier en read binary et donner le nom f.
+                ftp.storbinary(f"STOR {destination_ftp}{nom_fichier}", f) # Envoie le fichier binaire sur le FTP.
+
+        elif choix == "2": # Si le choix est 2
+
+            if not os.path.isdir(chemin_local):
+                raise ValueError("Le chemin fourni n'est pas un dossier valide.")
+
+            fichiers_distant = ftp.nlst(destination_ftp)
+            fichiers = os.listdir(chemin_local)
+
+            for fichier in fichiers: # Pour chaque fichier dans la liste Fichiers.
+                chemin_fichier = os.path.join(chemin_local, fichier)
+                if os.path.isfile(chemin_fichier):
+                    nom, ext = os.path.splitext(fichier)
+
+                    if 'v' in nom: # Si le nom du fichier contient la lettre V.
+                        prefixe, version = nom.rsplit('v', 1) # Séparer le nom du fichier et le numéro de version.
+                        if version.isdigit(): # Vérifier si le cartère qui suis le V est un chiffre.
+                            numero_version = int(version) # si c'est vrai, convertir la valeur (chiffre) en entier.
+                        else: # Si ce n'est pas un chiffre.
+                            prefixe = nom # le préfixe équivaut au nom.
+                            numero_version = 1 # numéro de version vaut 1.
+                    else: # Si le nom du fichier ne contient pas la lettre V.
+                        prefixe = nom # le préfixe équivaut au nom.
+                        numero_version = 1 # numéro de version vaut 1
+
+                    while True: # Tant que c'est vrai
+                        nouveau_nom = f"{prefixe}v{numero_version}{ext}" # Le nouveau nom est égal au préfixe suivi de v et du numéro de version.
+                        if nouveau_nom not in fichiers_distant: # Si ce nouveau nom n'existe déjà pas.
+                            break # Quitter
+                        else : # Sinon.
+                            numero_version += 1 # On incrémente de 1 le numéro de version.
+
+                    with open(chemin_fichier, "rb") as f: # Ouvrir le fichier en retry binary.
+                        ftp.storbinary(f"STOR {destination_ftp}{nouveau_nom}", f)
+
+                else: # Sinon.
+                    continue # Continuer.
+
+    except Exception as e:
+        print(f"Erreur : {e}")
+
+if __name__ == "__main__":
+   sauvegarde_programée2()
