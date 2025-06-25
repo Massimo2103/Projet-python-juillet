@@ -1,0 +1,1029 @@
+from ftplib import FTP
+from unittest.mock import patch
+import os
+import socket
+import sys
+import shutil
+import time
+import datetime
+
+import scan_module
+
+def ip_valide(Hote): # Définition de l'adresse IP
+    try: # Essaye
+        socket.inet_aton(Hote) # Convertir l'adresse IP en binaire.
+        print("L'adresse IP "+ str(Hote) +" est valide.") # Afficher le message si l'adresse IP est valide.
+        return 0 # Retourner la valeur 0.
+    except socket.error: # Interception de l'erreur lié au réseau.
+        print("Erreur : L'adresse IP "+ str(Hote) +" n'est pas valide.") # Afficher le message si l'adresse IP n'est pas valide.
+        return 1 # Retourner la valeur 1.
+    
+def ip_input(Hote): # Définition demande et ping de l'adresse IPV4.
+
+    #Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+    Response = ip_valide(Hote) # Vérification de la validité de l'adresse IPV4.
+    if Response == 0: # Si la défnition précendente renvoie la valeur 0.
+        Response = os.system("ping -n 1 " + Hote ) # Ping avec 1 pacquet vers l'adresse IP.
+
+        if Response == 0: # Si le ping réussi.
+            return Hote # Retourner l'adresse IP de l'équipement.
+        
+        else: # Sinon
+            print ("") # Afficher ligne vide.
+            print("Adresse IP incorrect! ") # Afficher message d'erreur.
+            return ip_input(Hote) # Demander l'adresse IPV4 valide.
+        
+    else: # Sinon
+        print ("") # Afficher ligne vide.
+        print("Adresse IP incorrect ou PING échoué ! ") # Afficher message d'erreur.
+        return ip_input(Hote) # Demander l'adresse IPV4 valide.
+    
+    
+def logger_action(ip_client, user, action, source, destination): # Définition des logs.
+    
+    date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") # Défiition de la date du jour l'heure.
+    
+    log_message = ( # Déclaration de la variable.
+        f"[{date_time}] Utilisateur: {user} | " # Ajoute la datetime suivi de l'utilisateur.
+        f"IP: {ip_client} | Action: {action} | " # Ajoute l'adresse IP du client et l'action réalisée.
+        f"Source: {source} | Destination/Nouveau nom: {destination}\n" # Ajouter la source et la destination.
+    )
+
+    with open("logs_actions.log", "a", encoding="utf-8") as log_file: # Ouvrir le fichier en mode append et codé en utf-8.
+        log_file.write(log_message) # Ecrit les valeurs de log_message dans le fichier de log.
+
+user = 'MARSEILLE' # User du FTP.
+mdp = 'Marseille' # MDP du FTP.
+
+def acceder_ftp():
+    try:
+        user, mdp = recuperer_identifiants_ftp()
+        if not user or not mdp:
+            print("❌ Impossible de récupérer les identifiants FTP.")
+            return None
+
+        ftp = FTP()
+        ftp.connect('127.0.0.1', 21)
+        ftp.login(user, mdp)
+        ftp.set_pasv(True)
+        print(f"Connexion FTP réussie avec le compte : {user}")
+        return ftp
+    except Exception as e:
+        print(f"Erreur de connexion FTP : {e}")
+        return None
+
+
+def copier_fichier_dossier(): # Définition pour copier un fichier ou dossier.
+
+    print("\nCopie FICHIER/DOSSIER ") # Afficher le message.
+     
+    while True : # Tant que c'est vrai
+        try: # Essayer
+                choix_server_hote = input("sur ftp (1) ou client (2) ? ") # Demande de connexion au FTP ou au client.
+                if choix_server_hote == "1" : # Si le choix est 1.
+                    acceder_ftp() # Lancer la définition acceder au FTP.
+                elif choix_server_hote == "2" : # Si le choix est 2.
+                    Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+                    ip_input(Hote) # Lancer la définition ip_input.
+                if choix_server_hote not in ("1", "2"): # Si le choix n'est ni 1 et 2.
+                    raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+                choix = input("Souhaitez-vous copier un fichier (1) ou un dossier (2) ? : ") # Demander s'il faut coper un fichier ou dossier.
+                if choix not in ("1", "2"): # Si le choix n'est ni 1 ni 2.
+                    raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+                source = input("Entrez le chemin COMPLET du fichier ou du dossier à copier (ex : C/Massimo/Paris.txt ou /remote_projet/ville/...): ").strip() # Demander le chemin source en retirant les espaces.
+                if not os.path.exists(source): # Si le chemin n'existe pas.
+                    raise ValueError("Le chemin SOURCE est incorrect ! ") # Arrêt de l'éxecution.
+                destination = input("Entrez le chemin COMPLET où coller le fichier ou le dossier avec le nom du fichier (ex : C/Massimo/Juillet/Paris.txt ou /remote_projet/ville/...)) : ").strip() # Demander le chemin destination en retirant les espaces.
+                dossier_parent = os.path.dirname(destination) # Extraire le chemin dossier.
+                if not os.path.isdir(dossier_parent): # Si le dossier n'existe pas.
+                    raise ValueError("Le chemin de DESTINATION est incorrect ! ") # Arrêt de l'éxecution.
+
+                if choix == "1": # Si le choix est 1.
+                    shutil.copy2(source, destination) # Copie le fichier source en conservant la date...
+                    if choix_server_hote == "1": # Si le choix est 1.
+                        logger_action("Serveur FTP" , user, "COPIE FICHIER", source, destination) # Créer le log suivant.
+                    elif choix_server_hote == "2": # Si le choix est 2.
+                        logger_action(Hote, user, "COPIE FICHIER", source, destination) # Créer le log suivant.
+                    print(f"Fichier copié avec succès vers : {destination} !") # Afficher le message.
+                elif choix == "2": # Si le choix est 2.
+                    shutil.copytree(source, destination) # Copie le dossier source en conservant la date...
+                    if choix_server_hote == "1": # Si le choix est 1.
+                        logger_action("Serveur FTP" , user, "COPIE DOSSIER", source, destination) # Créer le log suivant.
+                    elif choix_server_hote == "2": # Si le choix est 2.
+                        logger_action(Hote, user, "COPIE FICHIER", source, destination) # Créer le log suivant.
+                    print(f"Dossier copié avec succès vers : {destination} !") # Affciher le message.
+               
+        except ValueError as e: # En cas de Value Error.
+               message_erreur = str(e) # Convertir l'erreur en chaîne de caractère.
+               print(f"Erreur : {message_erreur}") # Afficher le message d'erreur.
+               
+        except Exception as e: # En cas d'erreur.
+               print(f"Erreur lors de la copie : {e}") # Afficher le message d'erreur.
+
+        else: # Sinon
+            break # Continuer
+
+def renommer_fichier_dossier(): # Définition renommer un fichier ou un dossier.
+    print("\nRenommer FICHIER/DOSSIER ") # Affichage de la fonction.
+     
+    while True : # Tant que c'est vrai.
+        try: # Essayer
+                choix_server_hote = input("sur ftp (1) ou client (2) ? ") # Demande de connexion au FTP ou au client.
+                if choix_server_hote == "1" : # Si le choix est 1.
+                    acceder_ftp() # Lancer la définition acceder au FTP.
+                elif choix_server_hote == "2" : # Si le choix est 2.
+                    Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+                    ip_input(Hote) # Lancer la définition ip_input.
+                if choix_server_hote not in ("1", "2"): # Si le choix n'est ni 1 et 2.
+                    raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+                choix = input("Souhaitez-vous renommer un FICHIER (1) ou un DOSSIER (2) ? : ") # Demander si renommer un fichier ou un dossier.
+                if choix not in ("1", "2"): # Si le choix n'est ni 1 ni 2.
+                    raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+                source = input("Entrez le chemin COMPLET du fichier ou du dossier à renommer (ex : C/Massimo/Paris): ").strip() # Demander le chemin du fichier/dossier.
+                if not os.path.exists(source): # Si le chemin n'existe pas.
+                    raise ValueError("Le chemin est incorrect ! ") # Arrêt de l'éxecution.
+                
+                destination = input("Entrez le chemin COMPLET du fichier ou du dossier à renommer (ex : C/Massimo/Juillet/Paris) : ").strip() # Demander le chemin avec le nouveau nom.
+               
+                dossier_parent = os.path.dirname(destination) # Extraire le chemin dossier.
+                if not os.path.isdir(dossier_parent): # Si le dossier n'existe pas.
+                    raise ValueError("Le chemin est incorrect ! ") # Arrêt de l'éxecution.
+                              
+                os.rename(source, destination) # Renommer le fichier.
+
+                if choix == "1":# Si le choix est 1.
+                    if choix_server_hote == "1": # Si le choix est 1.
+                        logger_action("Serveur FTP" , user, "RENOMMER FICHIER", source, destination) # Créer le log suivant.
+                    elif choix_server_hote == "2": # Si le choix est 2.
+                        logger_action(Hote, user, "RENOMMER FICHIER", source, destination) # Créer le log suivant.
+                    print(f"Fichier renommé avec succès : {source} ==> {destination}") # Afficher le message.
+                elif choix == "2": # Si le choix est 2.
+                    if choix_server_hote == "1": # Si le choix est 1.
+                        logger_action("Serveur FTP" , user, "RENOMMER DOSSIER", source, destination) # Créer le log suivant.
+                    elif choix_server_hote == "2": # Si le choix est 2.
+                        logger_action(Hote, user, "RENOMMER DOSSIER", source, destination) # Créer le log suivant.
+                    print(f"Dossier renommé avec succès : {source} ==> {destination}") # Afficher le message.
+               
+        except ValueError as e: # En cas de Value Error.
+               message_erreur = str(e) # Convertir l'erreur en chaîne de caractère.
+               print(f"Erreur : {message_erreur}") # Afficher le message d'erreur.
+        except Exception as e: # En cas d'erreur.
+               print(f"Erreur lors de la renommée : {e}") # Afficher le message d'erreur.
+        else: # Sinon
+            break # Quiter la boucle
+
+def creer_fichier_dossier(): # Définition créer un fichier ou dossier.
+    print("\nCréer FICHIER/DOSSIER ") # Afficher la définition.
+
+    while True: # Tant que c'est vrai.
+        try: # Essayer
+            choix_server_hote = input("sur ftp (1) ou client (2) ? ") # Demande de connexion au FTP ou au client.
+            if choix_server_hote == "1" : # Si le choix est 1.
+                acceder_ftp() # Lancer la définition acceder au FTP.
+            elif choix_server_hote == "2" : # Si le choix est 2.
+                Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+                ip_input(Hote) # Lancer la définition ip_input.
+            if choix_server_hote not in ("1", "2"): # Si le choix n'est ni 1 et 2.
+                raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+            choix = input("Souhaitez-vous créer un fichier (1) ou un dossier (2) ? : ") # Demander si on créer un fichier ou un dossier.
+            if choix not in ("1", "2"): # Si le choix n'est ni 1 ni 2.
+                raise ValueError("La valeur saisie n'est pas 1 ou 2 !") # Arrêt de l'éxecution.
+            source = input("Entrez le chemin COMPLET où créer le fichier ou dossier (ex : C/Massimo/Juillet/Paris/test.txt ou /REMOTE_PROJET/MARSEILLE/Projet.txt) : ").strip() # Demander le chemin.
+            if not source: # Si ce n'est pas source.
+                 raise ValueError("La localisation n'a pas été renseignée !")
+            dossier_parent = os.path.dirname(source) # Extraire le chemin dossier.
+            if not os.path.isdir(dossier_parent): # Si le dossier n'existe pas.
+                raise ValueError("Le chemin est incorrect ! ") # Arrêt de l'éxecution.
+
+            if choix == "1": # Si le choix est 1.
+                with open(source, 'x') as f:  # Ouvrir le fichier uniquement s'il n'existe pas.
+                    pass # Passer (ne rien écrire dans le fichier).
+                if choix_server_hote == "1": # Si le choix est 1.
+                    logger_action("Serveur FTP" , user, "CRÉER FICHIER", source, "non concerné") # Créer le log suivant.
+                elif choix_server_hote == "2": # Si le choix est 2.
+                    logger_action(Hote, user, "CRÉER FICHIER", source, "non concerné") # Créer le log suivant.
+                print(f"Fichier créé avec succès : {source}") # Afficher le message.
+
+            elif choix == "2": # Si le choix est 2.
+                os.makedirs(source, exist_ok=False)  # Créer le dossier uniquement s'il n'existe pas.
+                if choix_server_hote == "1": # Si le choix est 1.
+                    logger_action("Serveur FTP" , user, "CRÉER DOSSIER", source, "non concerné") # Créer le log suivant.
+                elif choix_server_hote == "2": # Si le choix est 2.
+                    logger_action(Hote, user, "CRÉER DOSSIER", source, "non concerné") # Créer le log suivant.
+                print(f"Fichier créé avec succès : {source}") # Afficher le message.
+                print(f"Dossier créé avec succès : {source}") # Afficher le message.
+
+        except ValueError as e: # En cas de Value Error.
+            message_erreur = str(e) # Convertir l'erreur en chaîne de caractère.
+            print(f"Erreur : {message_erreur}") # Affichier le message d'erreur.
+        except FileExistsError: # Si le fichier existe déjà.
+            print("Erreur : Le fichier ou dossier existe déjà.") # Afficher le message d'errreur.
+        except Exception as e: # En cas d'erreur.
+            print(f"Erreur lors de la création : {e}") # Afficher le message d'erreur.
+            continue # Continuer.
+        else: # Sinon.
+            break # Quitter la boucle.
+
+def deplacer_fichier_dossier(): # Définition déplacer un fichier ou dossier.    
+    print(r"\Déplacer FICHIER/DOSSIER ") # Afficher la définition
+
+    while True: # Tant que c'est vrai
+        try: # Essayer
+            choix_server_hote = input("sur ftp (1) ou client (2) ? ") # Demande de connexion au FTP ou au client.
+            if choix_server_hote == "1" : # Si le choix est 1.
+                acceder_ftp() # Lancer la définition acceder au FTP.
+            elif choix_server_hote == "2" : # Si le choix est 2.
+                Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+                ip_input(Hote) # Lancer la définition ip_input.
+            if choix_server_hote not in ("1", "2"): # Si le choix n'est ni 1 et 2.
+                raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+            choix = input("Souhaitez-vous déplacer un fichier (1) ou un dossier (2) ? : ") # Demander si déplacer un fichier ou dossier.
+            if choix not in ("1", "2"): # Si le choix n'est ni 1 ni 2.
+               raise ValueError("La valeur saisie n'est pas 1 ou 2 !") # Arrêt de l'éxecution.
+            source = input("Entrez le chemin COMPLET du fichier ou dossier à déplacer (ex : C:/Massimo/Paris ou /REMOTE_PROJET/VILLE/...) : ").strip() # Demander le chemin du ficher ou dossier.
+            if not os.path.exists(source): # Si le chemin n'existe pas.
+               raise ValueError("Le chemin spécifié n'existe pas !") # Arrêt de l'éxecution.
+           
+            destination = input("Entrez le chemin COMPLET de destination (ex : C:/Massimo/Juillet/Paris ou /REMOTE_PROJET/VILLE/... : ").strip() # Demander le nouveau chemin.
+            dossier_parent = os.path.dirname(destination) # Extraire le chemin dossier.
+            if not os.path.isdir(dossier_parent): # Si le dossier n'existe pas.
+                raise ValueError("Le chemin de DESTINATION est incorrect !") # Arrêt de l'éxecution.
+
+            confirmation = input("Êtes-vous certain de vouloir déplacé cet élément et son contenu ? (o/n): ") # Demander la confirmation.
+            if confirmation not in ("o", "n"): # Si ce n'est pas o ou n.
+               raise ValueError("La valeur saisie n'est pas o ou n !") # Arrêt de l'éxecution.
+
+            shutil.move(source, destination) # Déplacer l'élément de l'ancien vers le nouveau chemin.
+
+            if choix == "1": # Si le choix est 1.
+                if choix_server_hote == "1": # Si le choix est 1.
+                        logger_action("Serveur FTP" , user, "DÉPLACER FICHIER", source, destination) # Créer le log suivant.
+                elif choix_server_hote == "2": # Si le choix est 2.
+                        logger_action(Hote, user, "DÉPLACER FICHIER", source, destination) # Créer le log suivant.
+                print(f"Fichier déplacé avec succès : {source} ==> {destination}") # Afficher le message.
+            elif choix == "2": # Si le choix est 2.
+                if choix_server_hote == "1": # Si le choix est 1.
+                        logger_action("Serveur FTP" , user, "DÉPLACER DOSSIER", source, destination) # Créer le log suivant.
+                elif choix_server_hote == "2": # Si le choix est 2.
+                        logger_action(Hote, user, "DÉPLACER DOSSIER", source, destination) # Créer le log suivant.
+                print(f"Dossier déplacé avec succès vers : {source} ==> {destination}") # Afficher le message.
+
+        except ValueError as e: # En cas de Value Error.
+            print(f" Erreur : {e}") # Afficher le message d'erreur.
+        except Exception as e: #En cas d'erreur.
+            print(f"Erreur lors de la suppression de l'élément ! : {e}") # Affiche le message d'erreur.
+            continue # Continuer.
+        else: # Sinon
+            break # Sortir de la boucle
+        
+        
+def supprimer_fichier_dossier(): # Définition supprimer un fichier ou dossier.
+    print(r"\ Supprimer FICHIER/DOSSIER ") # Afficher le message de définition.
+
+    while True: # Tant qeu c'est vrai.
+        try: # Essayer
+            choix_server_hote = input("sur ftp (1) ou client (2) ? ") # Demande de connexion au FTP ou au client.
+            if choix_server_hote == "1" : # Si le choix est 1.
+                acceder_ftp() # Lancer la définition acceder au FTP.
+            elif choix_server_hote == "2" : # Si le choix est 2.
+                Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+                ip_input(Hote) # Lancer la définition ip_input.
+            if choix_server_hote not in ("1", "2"): # Si le choix n'est ni 1 et 2.
+                raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+            choix = input("Souhaitez-vous supprimer un fichier (1) ou un dossier (2) ? : ") # Demander si fichier ou dossier à supprimer.
+            if choix not in ("1", "2"): # Si le choix n'est ni 1 ni 2.
+               raise ValueError("La valeur saisie n'est pas 1 ou 2 !") # Arrêt de l'éxecution.
+            source = input("Entrez le chemin COMPLET du fichier ou du dossier à supprimer (ex : C:/Massimo/Paris.txt ou /REMOTE_PROJET/VILLE/...) : ").strip() # Demander le chemin en supprimant les espaces.
+            if not os.path.exists(source): # Si le chemin n'existe pas.
+               raise ValueError("Le chemin spécifié n'existe pas !") # Afficher le message d'erreur.
+
+            confirmation = input("Êtes-vous certain de vouloir supprimé cet élément et son contenu ? (o/n): ") # Demander la confirmation.
+            if confirmation not in ("o", "n"): # Si ce n'est pas o ou n.
+               raise ValueError("La valeur saisie n'est pas o ou n !") # Arrêt de l'éxecution.
+            
+            if confirmation == "o" : # Si  c'est o.
+                if choix == "1": # Si c'est un fichier.
+                    if not os.path.isfile(source): # Si l'élement n'est pas un fichier.
+                        raise ValueError("Le chemin renseigné ne renvoie pas un fichier !") # Arrêt de l'éxecution.
+                    os.remove(source) # Supprime le fichier.
+                    if choix_server_hote == "1": # Si le choix est 1.
+                        logger_action("Serveur FTP" , user, "SUPPRESSION FICHIER", source, "non concerné") # Créer le log suivant.
+                    elif choix_server_hote == "2": # Si le choix est 2.
+                        logger_action(Hote, user, "SUPPRESSION FICHIER", source, "non concerné") # Créer le log suivant.
+                    print(f"Fichier supprimé avec succès : {source}") # Afficher le message.
+
+                elif choix == "2": # Si c'est un dossier.
+                    if not os.path.isdir(source): # Si l'élément n'est pas un dossier.
+                        raise ValueError("Le chemin renseigné ne renvoie pas un dossier !") # Arrêt de l'éxecution.
+                    shutil.rmtree(source) # Supprimé le dossier.
+                    if choix_server_hote == "1": # Si le choix est 1.
+                        logger_action("Serveur FTP" , user, "SUPPRESSION DOSSIER", source, "non concerné") # Créer le log suivant.
+                    elif choix_server_hote == "2": # Si le choix est 2.
+                        logger_action(Hote, user, "SUPPRESSION DOSSIER", source, "non concerné") # Créer le log suivant.
+                    print(f"Dossier supprimé avec succès : {source}") # Affichier le message.
+            elif confirmation == "n" :  # Si la réponse est n.
+                print("La suppression a été annulée !") # Afficher le message.
+
+        except ValueError as e: # En cas de Value Error.
+            print(f" Erreur : {e}") # Afficher le message d'erreur.
+        except Exception as e: # En cas d'erreur.
+            print(f"Erreur lors de la suppression de l'élément ! : {e}") # Afficher l'erreur.
+            continue # Continuer.
+        else: # Sinon.
+            break # Sortir de la boucle
+
+
+def lister_arborescence(chemin, prefixe=""):
+    try:
+        for element in os.listdir(chemin):
+            chemin_complet = os.path.join(chemin, element)
+            if os.path.isdir(chemin_complet):
+                print(f"{prefixe}[D] {element}/")
+                lister_arborescence(chemin_complet, prefixe + "    ")
+            else:
+                print(f"{prefixe}[F] {element}")
+    except Exception as e:
+        print(f"Erreur : {e}")
+
+    def main():
+        chemin = input("Entrez le chemin du dossier à lister : ").strip()
+        prefixe = input("Entrez le préfixe d'indentation (exemple : 4 espaces ou tab) ou laissez vide : ")
+        lister_arborescence(chemin, prefixe)
+
+    if __name__ == "__main__":
+     main()
+
+
+def naviguer_arborescence():
+    print("\nNaviguer dans l'arborescence des répertoires ")
+
+    while True:
+        try: 
+            choix_server_hote = input("sur ftp (1) ou client (2) ? ")
+            if choix_server_hote == "1" :
+                acceder_ftp()
+            elif choix_server_hote == "2" :
+                Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+                ip_input(Hote)
+            chemin = input("Saisissez le chemin (ex : C:/Massimo/Paris) : ").strip()
+            if not os.path.isdir(chemin):
+                raise ValueError("Le chemin indiqué n'existe pas ou n'est pas un dossier !")
+            print(f"Contenu de : {chemin}")
+
+            while True:
+                try:
+
+                    # Lister tout ce qu'il y a dans le dossier actuel
+                    contenu = os.listdir(chemin)
+
+                    # Séparer les dossiers et les fichiers
+                    fichiers = []
+                    dossiers = []
+
+                    for element in contenu: # Pour chaque élement qui se trouve dans contenu
+                        chemin_complet = os.path.join(chemin, element) # chemin complet correspond au chemin de départ jusqu'à élément sélectionner.
+                        if os.path.isfile(chemin_complet): # Si c'est un fichier, alors on l'ajoute à la liste "fichiers".
+                            fichiers.append(element) # Ajout de l'élément à la liste.
+                        elif os.path.isdir(chemin_complet): # Si c'est un dossier, alors on l'ajoute à la liste "dossiers".
+                            dossiers.append(element) # Ajout de l'élément à la liste.
+
+                    # Affichage du contenu
+                    print(f"\\Contenu de : {chemin}")
+                    print("\n========== DOSSIERS ==========")
+                    for index, nom_dossier in enumerate(dossiers): # Boucle for pour chaque dossier, les numérotés.
+                        print(f"  {index + 1}. {nom_dossier}") # Afficher le numéro associé au dossier.
+
+                    print("\n========== FICHIERS ==========")
+                    for nom_fichier in fichiers: # Boucle for pour afficher chaque nom de fichier de la liste fichier.
+                        print(f"  - {nom_fichier}") # Afficher le nom du fichier.
+
+                    print("\n========== OPTIONS ==========")
+                    print("  numéro : Aller dans un sous-dossier") # Afficher l'option.
+                    print("    r   : Revenir au dossier précédent") # Afficher l'option.
+                    print("    q    : Fermer l'explorateur") # Afficher l'option.
+
+                    choix = input("Que souhaitez-vous faire ? ").strip() # Demander l'action.
+
+                    if choix.isdigit(): # Si la valeur saisie est un chiffre entier positif.
+                        numero = int(choix) # Convertir la valeur par un entier.
+                        if 1 <= numero <= len(dossiers): # Si le numéro saisi est présent dans la liste énumérée.
+                            # Aller dans le sous-dossier choisi
+                            sous_dossier = dossiers[numero - 1]
+                            chemin = os.path.join(chemin, sous_dossier)
+                        else: # Sinon
+                            print("NUMÉRO de dossier invalide !") # Afficher le message d'erreur.
+                    
+                    elif choix == "r": # Si le choix est r.
+                        dossier_parent = os.path.dirname(chemin)
+                        if os.path.isdir(dossier_parent):
+                                chemin = dossier_parent
+                        else: # Sinon.
+                            continue # Continuer.
+
+                    elif choix == "q": # Si le choix est q.
+                        print("Au revoir !") # Afficher le message.
+                        break   # Quitte la boucle.
+ 
+                    if choix not in ("r", "q"):
+
+                        raise ValueError("Veuillez saisir r pour remonter ou q pour quitter ") # Arrêt de l'éxecution.
+                
+                except ValueError as erreur: # En cas de Value Error.
+                    print(f"Une erreur s'est produite : {erreur}") # Afficher le message d'erreur.
+                except Exception as erreur: # En cas d'erreur.
+                    print(f"Une erreur est survenue ! : {erreur}") # Afficher le message d'erreur.
+        except ValueError as erreur:
+                print(f"Une erreur s'est produite : {erreur}")
+        break
+
+
+
+
+def lister_dossier_fichier(): # Définition lister dossier fichier.
+    print("\nLister les DOSSIERS, les SOUS-DOSSIERS et les FICHIERS") # Afficher le message de la définition.
+    
+    while True: # Tant que c'est vrai.
+        try: # Essayer.
+            choix_server_hote = input("sur ftp (1) ou client (2) ? ") # Demande de connexion au FTP ou au client.
+            if choix_server_hote == "1" : # Si le choix est 1.
+                acceder_ftp() # Lancer la définition acceder au FTP.
+            elif choix_server_hote == "2" : # Si le choix est 2.
+                Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+                ip_input(Hote) # Lancer la définition ip_input.
+            if choix_server_hote not in ("1", "2"): # Si le choix n'est ni 1 et 2.
+                raise ValueError("La valeur saisie n'est pas 1 ou 2 ! ") # Arrêt de l'éxecution.
+            chemin = input("Saisissez le chemin à lister (ex : C:/Massimo/Paris) ou /remote_projet/ville/...) : ").strip() # Demander le chemin 
+            if not os.path.isdir(chemin): # Vérifier si le chemin existe.
+                raise ValueError("Le chemin est incorrect ou n'existe pas !") # Arrêt de l'éxecution.
+
+            dossiers = [] # création de la liste dossier
+            sous_dossiers = [] # création de la liste sous-dossier
+            fichiers = [] # création de la liste fichier
+
+            # Parcours récursif de l'arborescence
+            for racine, dirs, files in os.walk(chemin): # Parcourt récursivement le dossier et les sous-dossiers.
+                if racine == chemin: # Si racine est égal au chemin.
+                    for d in dirs: # Pour chaque dossier dans dirs.
+                        dossiers.append(os.path.join(racine, d)) # Ajouter le chemin complet à la liste dossier.
+                else: # Sinon.
+                    for d in dirs: # Pour chaque sous dossier dans dirs.
+                        sous_dossiers.append(os.path.join(racine, d)) # Ajoute les sous-dossiers dans la liste sous-dossiers.
+                for f in files: # Pour chaque fichier présent.
+                    fichiers.append(os.path.join(racine, f)) # Ajouter le chemin compler à la lsite fichiers.
+
+            print(f"\n===DOSSIERS dans {chemin} :") # Afficher le la rubrique DOSSIERS avec le chemin.
+            for d in dossiers: # Pour chaque dossier dans la liste dossier.
+                print(f" - {d}") # Afficher le chemin complet avec un tiert.
+
+            print(f"\n===SOUS-DOSSIERS :") # Afficher le la rubrique SOUS-DOSSIERS avec le chemin.
+            for sd in sous_dossiers: # Pour chaque sous dossier dans la liste sous dossier.
+                print(f" - {sd}") # Afficher le chemin complet avec un tiert.
+
+            print(f"\n===FICHIERS :") # Afficher le la rubrique FICHIERS avec le chemin.
+            for f in fichiers: # Pour chaque fichier dans la liste fichiers.
+                print(f" - {f}") # Afficher le chemin complet avec un tiert.
+
+        except ValueError as e: # En cas de Value Error.
+            print(f"Erreur : {e}") # Afficher le message d'erreur.
+
+        except Exception as e: # En cas d'erreur 
+            print(f"Erreur inattendue lors du listage : {e}") # Afficher le message d'erreur.
+            continue # Continuer
+        else: # Sinon
+            break #  Quitter la boucle
+
+
+def sauvegarder_fichier_dossier(): # Définition sauvergader les fochiers et dossiers.
+    print("\nSauvegarder FICHIER/DOSSIER du client vers le serveur FTP") # Afficher le message de la définition.
+
+    ftp = acceder_ftp() # lancer la définition de connexion au FTP.
+    if ftp is None: # Si FTP ne renvoie rien.
+        raise ValueError("Impossible de se connecter au serveur FTP.") # Arrêt de l'éxecution.
+    
+    Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ")
+    ip_input(Hote)
+
+    try: # Essayer.
+        choix = input("Souhaitez-vous sauvegarder un (1) ou plusieurs fichiers (2) ? :") # Demander si sauvergarder un ou plusieur fichier.
+        if choix not in ("1", "2"): # Si ce n'est pas égal à 1 ou 2.
+            raise ValueError("La valeur saisie n'est pas 1 ou 2 !") # Arrêt de l'éxecution.
+
+        source = input("Entrez le chemin COMPLET LOCAL du fichier ou dossier à envoyer vers le serveur FTP : ").strip() # Demander le chemin local en retirant les espaces.
+        ville = ville_autorisee_par_utilisateur()
+
+        if ville != "TOUS":
+            sous_chemin = input("Dans quel sous-dossier voulez-vous sauvegarder ? (laisser vide pour la racine FTP) : ").strip()
+
+            if sous_chemin:
+                destination = sous_chemin.replace("\\", "/").strip("/")
+            else:
+                destination = "."  # racine FTP
+
+            print(f"📁 Destination définie : /{destination}")
+        else:
+            destination = input("Entrez le chemin COMPLET de destination sur le serveur FTP (ex: /PARIS/client1/) : ").strip()
+            if ville != "TOUS" and ville not in destination.upper():
+                print(f"Vous n'êtes autorisé qu'à accéder à votre ville : {ville}")
+                return
+
+
+
+
+        try: # Essayer 
+            ftp.cwd(destination) # Se déplacer dans le dossier de destination.
+        except Exception: # En cas d'erreur
+            print(f" Dossier FTP non trouvé. Création de : {destination}") # Afficher le message d'erreur.
+            try: # Essayer.
+                for part in destination.strip("/").split("/"): # Pour chaque dossiers, retirer les /
+                    if part not in ftp.nlst(): # Si le dossier n'existe pas.
+                        ftp.mkd(part) # Créer le dossier.
+                    ftp.cwd(part) # Entrer dans le dossier nouvellement créé.
+            except Exception as e: # En cas d'erreur.
+                raise Exception(f"Impossible de créer le chemin FTP : {e}") # Arrêt de l'éxecution.
+
+        if choix == "1": # Si le choix est 1.
+            nom_fichier = os.path.basename(source) # Extrait le nom du fichier.
+
+            print(f"Envoi du fichier '{source}' vers '{destination}/{nom_fichier}' ...") # Affichage du message.
+            with open(source, "rb") as f: # Ouvir le fichier en mode retry binari pour le lire.
+                ftp.storbinary(f"STOR {nom_fichier}", f) # Sauvegarder le fichier dans le serveur FTP.
+            logger_action("Serveur FTP" , user, "SAUVEGARDE FICHIER", source, destination) # Créer le log suivant.
+            print(f"Fichier importé avec succès vers : {destination}/{nom_fichier}") # Afficher le message.
+
+        elif choix == "2": # Si le choix est 2.
+            if not os.path.isdir(source): # Si le chemin n'est pas un dossier.
+                raise ValueError("Le chemin fourni n'est pas un dossier valide.") # Arrêt de l'éxecution.
+
+            fichiers = os.listdir(source) # Lister les fichiers 
+
+            for fichier in fichiers: #Pour chaque fichier dans la liste fichiers.
+                chemin_fichier = os.path.join(source, fichier) # Former le chemin complet pour accéder au fichier.
+
+                if os.path.isfile(chemin_fichier): # Si c'est un fichier.
+                    print(f"Envoi de '{chemin_fichier}' vers '{destination}/{fichier}' en cours !") # Afficher le message.
+                    with open(chemin_fichier, "rb") as f: # Ouvrir le fichier en retry binary.
+                        ftp.storbinary(f"STOR {fichier}", f) # Sauvegarde vers le serveur FTP.
+                    print(f"Sauvegardé : {fichier}") # Afficher le message.
+                else: # Sinon
+                    continue # Continuer
+                
+            logger_action(Hote, user, "SAUVEGARDE DOSSIER", source, destination) # Créer le log suivant.
+            print(f"Tous les fichiers de '{source}' ont été sauvegardés dans '{destination}'.") # Affichage du message.
+
+    except Exception as e: # En cas d'erreur.
+        print(f" Erreur : {e}") # Afficher le message d'erreur.
+
+
+def restaurer_fichier_dossier(): # Définition restauration fichier ou dossier.
+    print("\nRestaurer FICHIER/DOSSIER du serveur FTP vers le CLIENT") # Afficher le message de la définition.
+
+    ftp = acceder_ftp() # Lancer la connexion FTP.
+    if ftp is None: # Si FTP ne renvoie rien.
+        raise ValueError(" Impossible de se connecter au serveur FTP.") # Arre^t de l'éxecution.
+    
+    Hote = input("Quelle est l'adresse IPv4 de l'équipement concené ? : ") # Demander l'adresse IPV4 de l'équipement. 
+    ip_input(Hote)  # Vérifie l'adresse IP.
+
+    try: # Essayer
+
+        choix = input("Souhaitez-vous restaurer un (1) ou plusieurs fichiers d'un dossier (2) ? :") # Demander le choix
+        if choix not in ("1", "2"): # Si le choix n'est ni 1 ni 2.
+            raise ValueError("La valeur saisie n'est pas 1 ou 2 !") # Arrêt de l'éxecution.
+
+        source = input("Entrez le chemin COMPLET du fichier ou dossier à restaurer sur le serveur FTP (depuis le dossier de votre ville): ").strip() # Demander la source.
+        destination = input("Entrez le chemin COMPLET LOCAL de destination sur le PC distant : ").strip() # Demander la destination.
+  
+        if not os.path.exists(destination): # Si la destination n'existe pas
+            os.makedirs(destination) # On crée le dossier          
+
+        if choix == "1" : # Si le choix est 1.
+            nom_fichier = os.path.basename(source) # Extrait le nom du fichier.
+            dossier_ftp = os.path.dirname(source) # Extrait le nom du dossier.
+
+            ftp.cwd(dossier_ftp) # Aller au répertoire où se trouve le fichier
+
+            destination = os.path.join(destination, nom_fichier) # Définition du chemin distant avec le nom du fichier
+            print(f"Récupération du fichier '{nom_fichier}' vers '{destination}' ...") # Afficher message de confirmation
+
+            with open(destination, "wb") as f: # Ouverture du fichier
+                    ftp.retrbinary(f"RETR {nom_fichier}", f.write) # Transformation du fichier en binaire
+                    
+            logger_action(Hote, user, "RESTAURATION FICHIER", source, destination) # Créer le log suivant.
+            print(f"Fichier restauré avec succès vers : {destination}") # Afficher le message de confirmation avec la destination
+
+
+        elif choix == "2" : # Si le choix est 2.
+            ftp.cwd(source)  # On s'assure que c'est un dossier FTP
+            fichiers = ftp.nlst()  # Liste les fichiers et sous-dossiers
+
+            for fichier in fichiers: # Pour chaque fichier de la liste fichiers.
+                try: # Essayer
+                    ftp.size(fichier)  # Si pas d’erreur rencontrée, c’est un fichier.
+                    destination = os.path.join(destination, os.path.basename(fichier)) # Défini la destiantion avec me nom du fichier + la destination locale.
+                    print(f"Téléchargement de '{fichier}' vers '{destination}' ...") # Affichage du message.
+
+                    with open(destination, "wb") as f: # Ouvrir le fichier de la variable destination en write binary.
+                        ftp.retrbinary(f"RETR {fichier}", f.write) # Télcharger le fichier en mode binaire et son contenu.
+                    print(f" Téléchargé : {fichier}") # Affichage du message.
+                except: # Exception.
+                    print(f" Ignoré (probablement un dossier) : {fichier}") # Affichage du message.
+                        
+            logger_action(Hote, user, "RESTAURATION DOSSIER", source, destination) # Créer le log suivant.
+            print(f"\\ Tous les fichiers du dossier '{source}' ont été restaurés dans '{destination}'.") # Afficher le message.
+
+    except Exception as e: # Exception.
+        print(f" Erreur : {e}") # Afficher l'erreur.
+
+
+
+def sauvegarde_programée():
+    print("\n IMPORTER FICHIER/DOSSIER DU CLIENT VERS SERVEUR FTP\n")
+
+    # === CONFIGURATION EN DUR ===
+    date_execution = datetime.datetime(2025, 6, 17, 18, 44)  # AAAA, MM, JJ, HH, MM
+    choix = "1"  # "1" pour un seul fichier, "2" pour plusieurs
+    chemin_local = "d:/scolarite/test.txt"  # Remplace par ton chemin local
+    destination_ftp = "/REMOTE_PROJET/MARSEILLE/"  # Remplace par ton chemin FTP
+    Hote = "192.168.1.44"
+
+    # Connexion FTP
+    ftp = acceder_ftp()
+    if ftp is None:
+        raise ValueError("Impossible de se connecter au serveur FTP.")
+
+    # Simulation de la saisie d'IP (sans modifier ip_input)
+    with patch('builtins.input', return_value=Hote):
+        ip_result = ip_input(Hote)
+
+    if not ip_result:
+        raise ValueError("L'adresse IP est invalide ou injoignable.")
+
+    try:
+        maintenant = datetime.datetime.now()
+        delta = (date_execution - maintenant).total_seconds()
+        if delta > 0:
+            print(f"Attente jusqu'à {date_execution} pour lancer la sauvegarde...")
+            time.sleep(delta)
+        else:
+            print("La date/heure est dans le passé. La sauvegarde commence immédiatement.")
+
+        # Navigation ou création du dossier de destination sur le FTP
+        try:
+            ftp.cwd(destination_ftp)
+        except Exception:
+            print(f" Dossier FTP non trouvé. Création de : {destination_ftp}")
+            try:
+                for part in destination_ftp.strip("/").split("/"):
+                    if part not in ftp.nlst():
+                        ftp.mkd(part)
+                    ftp.cwd(part)
+            except Exception as e:
+                raise Exception(f"Impossible de créer le chemin FTP : {e}")
+
+        # Sauvegarde d'un fichier
+        if choix == "1":
+            nom_fichier = os.path.basename(chemin_local)
+            print(f"Envoi du fichier '{chemin_local}' vers '{destination_ftp}/{nom_fichier}' ...")
+            with open(chemin_local, "rb") as f:
+                ftp.storbinary(f"STOR {nom_fichier}", f)
+            print(f"Fichier importé avec succès vers : {destination_ftp}/{nom_fichier}")
+
+        # Sauvegarde d’un dossier
+        elif choix == "2":
+            if not os.path.isdir(chemin_local):
+                raise ValueError("Le chemin fourni n'est pas un dossier valide.")
+
+            fichiers = os.listdir(chemin_local)
+            for fichier in fichiers:
+                chemin_fichier = os.path.join(chemin_local, fichier)
+                if os.path.isfile(chemin_fichier):
+                    print(f"Envoi de '{chemin_fichier}' vers '{destination_ftp}/{fichier}' ...")
+                    with open(chemin_fichier, "rb") as f:
+                        ftp.storbinary(f"STOR {fichier}", f)
+                    print(f"Téléversé : {fichier}")
+                else:
+                    print(f"Ignoré (dossier ou non-fichier) : {fichier}")
+
+            print(f"Tous les fichiers de '{chemin_local}' ont été importés dans '{destination_ftp}'.")
+
+    except Exception as e:
+        print(f"Erreur : {e}")
+
+
+
+def sauvegarde_programée2():
+    #print("\n IMPORTER FICHIER/DOSSIER DU CLIENT VERS SERVEUR FTP\n")
+
+    # === CONFIGURATION EN DUR ===
+    date_execution = datetime.datetime(2025, 6, 19, 15, 26)  # AAAA, MM, JJ, HH, MM
+    choix = "1"  # "1" pour un seul fichier, "2" pour plusieurs
+    Hote = "10.20.2.93" # Définit  l'adresse IP du poste.
+    chemin_local = "D:/log.txt" #Saisirle chemin source.
+    destination_ftp = "/REMOTE_PROJET/MARSEILLE/" # Saisir la destination.
+
+    # Connexion FTP
+    ftp = acceder_ftp()
+    if ftp is None:
+        raise ValueError("Impossible de se connecter au serveur FTP.")
+
+    # Simulation de saisie IP pour ip_input()
+    with patch('builtins.input', return_value=Hote):
+        ip_result = ip_input(Hote)
+
+    if not ip_result:
+        raise ValueError("L'adresse IP est invalide ou injoignable.")
+
+
+    try: # Essayer
+        date_actuelle = datetime.datetime.now() # Définir la date actuelle
+        difference = (date_execution - date_actuelle).total_seconds() # Définir le délai antre la date actuelle et la date d'execution
+        if difference > 0: # Si la différence est supérieur à 0
+            #print(f"Attente jusqu'à {date_execution} pour lancer la sauvegarde...")
+            time.sleep(difference) # Attente le délai défini par "différence"
+        else: # Sinon
+            print("La date et/ou heure est dans le passé. La sauvegarde commence immédiatement.") # Afficher le message d'erreur
+
+        if choix == "1": # Si le choix est 1.
+            nom_fichier = os.path.basename(chemin_local) # Extrait le nom du fichier (avec extension) à partir du chemin complet.
+            fichiers_distant = ftp.nlst() # Liste les fichiers présent sur le serveur FTP.
+
+            nom, ext = os.path.splitext(nom_fichier) # Spliter le nom et l'extension du fichier.
+
+            if 'v' in nom: # Si le nom du fichier contient la lettre V.
+                prefixe, version = nom.rsplit('v', 1) # Séparer le nom du fichier et le numéro de version.
+                if version.isdigit(): # Vérifier si le cartère qui suis le V est un chiffre.
+                    numero_version = int(version) # si c'est vrai, convertir la valeur (chiffre) en entier.
+                else: # Si ce n'est pas un chiffre.
+                    prefixe = nom # le préfixe équivaut au nom.
+                    numero_version = 1 # numéro de version vaut 1.
+            else: # Si le nom du fichier ne contient pas la lettre V.
+                prefixe = nom # le préfixe équivaut au nom.
+                numero_version = 1 # numéro de version vaut 1
+
+            while True: # Tant que c'est vrai
+                nouveau_nom = f"{prefixe}v{numero_version}{ext}" # Le nouveau nom est égal au préfixe suivi de v et du numéro de version.
+                if nouveau_nom not in fichiers_distant: # Si ce nouveau nom n'existe déjà pas.
+                    nom_fichier = nouveau_nom # le nom du fichier est égal au nouveau nom.
+                    break # Sortir de la boucle
+                else : # Sinon.
+                    numero_version += 1 # On incrémente de 1 le numéro de version.
+
+            with open(chemin_local, "rb") as f: # Ouvrir le fichier en read binary et donner le nom f.
+                ftp.storbinary(f"STOR {nom_fichier}", f) # Envoie le fichier binaire sur le FTP.
+
+        elif choix == "2": # Si le choix est 2
+
+            if not os.path.isdir(chemin_local):
+                raise ValueError("Le chemin fourni n'est pas un dossier valide.")
+
+            fichiers_distant = ftp.nlst()
+            fichiers = os.listdir(chemin_local)
+
+            for fichier in fichiers: # Pour chaque fichier dans la liste Fichiers.
+                chemin_fichier = os.path.join(chemin_local, fichier)
+                if os.path.isfile(chemin_fichier):
+                    nom, ext = os.path.splitext(fichier)
+
+                    if 'v' in nom: # Si le nom du fichier contient la lettre V.
+                        prefixe, version = nom.rsplit('v', 1) # Séparer le nom du fichier et le numéro de version.
+                        if version.isdigit(): # Vérifier si le cartère qui suis le V est un chiffre.
+                            numero_version = int(version) # si c'est vrai, convertir la valeur (chiffre) en entier.
+                        else: # Si ce n'est pas un chiffre.
+                            prefixe = nom # le préfixe équivaut au nom.
+                            numero_version = 1 # numéro de version vaut 1.
+                    else: # Si le nom du fichier ne contient pas la lettre V.
+                        prefixe = nom # le préfixe équivaut au nom.
+                        numero_version = 1 # numéro de version vaut 1
+
+                    while True: # Tant que c'est vrai
+                        nouveau_nom = f"{prefixe}v{numero_version}{ext}" # Le nouveau nom est égal au préfixe suivi de v et du numéro de version.
+                        if nouveau_nom not in fichiers_distant: # Si ce nouveau nom n'existe déjà pas.
+                            break # Quitter
+                        else : # Sinon.
+                            numero_version += 1 # On incrémente de 1 le numéro de version.
+
+                    with open(chemin_fichier, "rb") as f: # Ouvrir le fichier en retry binary.
+                        ftp.storbinary(f"STOR {nouveau_nom}", f)
+
+                else: # Sinon.
+                    continue # Continuer.
+
+    except Exception as e:
+        print(f"Erreur : {e}")
+
+#if __name__ == "__main__":
+#    sauvegarde_programée2()
+
+import threading
+import time
+import datetime
+import os
+from unittest.mock import patch
+
+def sauvegarde_programée3():
+    def tache_programmée():
+        # === CONFIGURATION EN DUR ===
+        date_execution = datetime.datetime(2025, 6, 25, 12, 15)  # AAAA, MM, JJ, HH, MM
+        choix = "1"  # "1" pour un seul fichier, "2" pour plusieurs
+        Hote = "10.20.2.93" # Définit  l'adresse IP du poste.
+        chemin_local = "D:/log.txt" #Saisir le chemin source.
+        destination_ftp = "REMOTE_PROJET/MARSEILLE/test5" # Saisir la destination.
+
+        # Connexion FTP
+        ftp = acceder_ftp()
+        if ftp is None:
+            raise ValueError("Impossible de se connecter au serveur FTP.")
+
+        # Simulation de saisie IP pour ip_input()
+        with patch('builtins.input', return_value=Hote):
+            ip_result = ip_input(Hote)
+
+        if not ip_result:
+            raise ValueError("L'adresse IP est invalide ou injoignable.")
+
+        try: # Essayer
+            date_actuelle = datetime.datetime.now() # Définir la date actuelle
+            difference = (date_execution - date_actuelle).total_seconds() # Définir le délai entre la date actuelle et la date d'execution
+            if difference > 0: # Si la différence est supérieur à 0
+                time.sleep(difference) # Attendre le délai défini par "difference"
+            else: # Sinon
+                print("La date et/ou heure est dans le passé. La sauvegarde commence immédiatement.") # Afficher le message d'erreur
+
+            if choix == "1":
+                nom_fichier = os.path.basename(chemin_local)
+                fichiers_distant = ftp.nlst(destination_ftp)
+                nom, ext = os.path.splitext(nom_fichier)
+
+                if 'v' in nom:
+                    prefixe, version = nom.rsplit('v', 1)
+                    if version.isdigit():
+                        numero_version = int(version)
+                    else:
+                        prefixe = nom
+                        numero_version = 1
+                else:
+                    prefixe = nom
+                    numero_version = 1
+
+                while True:
+                    nouveau_nom = f"{prefixe}v{numero_version}{ext}"
+                    if nouveau_nom not in fichiers_distant:
+                        nom_fichier = nouveau_nom
+                        break
+                    else:
+                        numero_version += 1
+
+                with open(chemin_local, "rb") as f:
+                    ftp.storbinary(f"STOR {destination_ftp}{nom_fichier}", f)
+
+            elif choix == "2":
+                if not os.path.isdir(chemin_local):
+                    raise ValueError("Le chemin fourni n'est pas un dossier valide.")
+
+                fichiers_distant = ftp.nlst(destination_ftp)
+                fichiers = os.listdir(chemin_local)
+
+                for fichier in fichiers:
+                    chemin_fichier = os.path.join(chemin_local, fichier)
+                    if os.path.isfile(chemin_fichier):
+                        nom, ext = os.path.splitext(fichier)
+
+                        if 'v' in nom:
+                            prefixe, version = nom.rsplit('v', 1)
+                            if version.isdigit():
+                                numero_version = int(version)
+                            else:
+                                prefixe = nom
+                                numero_version = 1
+                        else:
+                            prefixe = nom
+                            numero_version = 1
+
+                        while True:
+                            nouveau_nom = f"{prefixe}v{numero_version}{ext}"
+                            if nouveau_nom not in fichiers_distant:
+                                break
+                            else:
+                                numero_version += 1
+
+                        with open(chemin_fichier, "rb") as f:
+                            ftp.storbinary(f"STOR {destination_ftp}{nouveau_nom}", f)
+                    else:
+                        continue
+
+        except Exception as e:
+            print(f"Erreur : {e}")
+
+    # Lancer la tâche dans un thread
+    thread = threading.Thread(target=tache_programmée, daemon=True)
+    thread.start()
+    print("[INFO] Tâche de sauvegarde planifiée en arrière-plan.")
+
+#sauvegarde_programée3()
+
+import csv
+
+utilisateur_courant = None
+role_utilisateur = None
+
+def authentification():
+    
+    global utilisateur_courant, role_utilisateur
+    print("===== CONNEXION UTILISATEUR =====")
+
+    try:
+        with open("users.csv", mode='r', encoding='utf-8-sig') as f:
+            lecteur = csv.DictReader(f, delimiter=',')
+            utilisateurs = list(lecteur)
+
+        tentatives = 0
+        while tentatives < 3:
+            login = input("Login : ").strip()
+            password = input("Mot de passe : ").strip()
+
+            utilisateur_trouve = next((u for u in utilisateurs if u['login'] == login and u['password'] == password), None)
+
+            if utilisateur_trouve:
+                utilisateur_courant = login
+                role_utilisateur = utilisateur_trouve['role']
+                print(f"Connexion réussie. Rôle : {role_utilisateur.upper()}")
+                return
+            else:
+                tentatives += 1
+                print(f"Identifiants incorrects. Tentative {tentatives}/3\n")
+
+        print("Trop de tentatives échouées. L'accès est bloqué.")
+        exit()
+
+    except FileNotFoundError:
+        print("Fichier users.csv introuvable.")
+        exit()
+
+def ville_autorisee_par_utilisateur():
+    if utilisateur_courant == "admin_marseille":
+        return "MARSEILLE"
+    elif utilisateur_courant == "admin_rennes":
+        return "RENNES"
+    elif utilisateur_courant == "admin_grenoble":
+        return "GRENOBLE"
+    elif utilisateur_courant == "admin_supreme_paris":
+        return "TOUS"
+    else:
+        return None
+
+def recuperer_identifiants_ftp():
+    if utilisateur_courant == "admin_supreme_paris":
+        return ("admin_supreme_paris", "paris123")
+    elif utilisateur_courant == "admin_marseille":
+        return ("admin_marseille", "marseille123")
+    elif utilisateur_courant == "admin_rennes":
+        return ("admin_rennes", "rennes123")
+    elif utilisateur_courant == "admin_grenoble":
+        return ("admin_grenoble", "grenoble123")
+    else:
+        return (None, None)
+
+
+def gestion_fichier(): # Définition de la gestion des fichiers.
+
+ while True : # Tant que c'est vrai.
+        
+        print("============================================================") # Afficher le choix.
+        print("Que souhaitez-vous faire ?") # Afficher le choix.
+        print("")
+        print("1 : COPIER un fichier ou un dossier.") # Afficher le choix.
+        print("2 : RENOMMER un fichier ou un dossier.") # Afficher le choix.
+        print("3 : CRÉER un fichier ou un dossier.") # Afficher le choix.
+        print("4 : DÉPLACER un fichier ou un dossier.") # Afficher le choix.
+        print("5 : SUPPRIMER un fichier ou un dossier.") # Afficher le choix.
+        print("6 : SAUVEGARDER un fichier ou un dossier (depuis le client).") # Afficher le choix.
+        print("7 : RESTAURER un fichier ou un dossier (depuis le serveur).") # Afficher le choix.
+        print("8 : SCAN réseau ou ports.") # Afficher le choix.
+        print("9 : QUITTER.") # Afficher le choix.
+
+        choix = input("Selectionner l'action que vous souhaitez faire : ") # Demander le choix.
+
+        if choix == "1" :
+             copier_fichier_dossier()
+        elif choix == "2" :
+             renommer_fichier_dossier()
+        elif choix == "3" :
+             creer_fichier_dossier()
+        elif choix == "4" :
+             deplacer_fichier_dossier()
+        elif choix == "5" :
+             supprimer_fichier_dossier()
+        elif choix == "6" :
+             sauvegarder_fichier_dossier()
+        elif choix == "7" :
+             restaurer_fichier_dossier()
+        elif choix == "8" :
+            scan_module.menu_scan()
+        elif choix == "9" :
+            break
+        else :
+            print("Choix invalide. Veuillez entrer un chiffre entre 1 et 9.")
+             
+if __name__ == "__main__":
+    authentification()
+    gestion_fichier()
