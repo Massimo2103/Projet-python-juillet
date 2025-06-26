@@ -1,0 +1,163 @@
+import socket
+import time
+import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
+import threading
+
+# Test de validité de l'IP
+def ip_valide(Hote):
+    try:
+        socket.inet_aton(Hote)
+        print("L'adresse IP " + str(Hote) + " est valide.")
+        return 0
+    except socket.error:
+        print("Erreur : L'adresse IP " + str(Hote) + " n'est pas valide.")
+        return 1
+
+# Demande IP + test PING
+def ip_input():
+    Hote = input("Quelle est l'adresse IPv4 de l'équipement concerné ? : ")
+    Response = ip_valide(Hote)
+    if Response == 0:
+        Response = os.system("ping -n 1 " + Hote + " >nul")
+        if Response == 0:
+            return Hote
+        else:
+            print("\nAdresse IP incorrect!")
+            return ip_input()
+    else:
+        print("\nAdresse IP incorrect ou PING échoué !")
+        return ip_input()
+
+# Fonction de scan réseau (plage d'adresses IP)
+def scan_reseau():
+    ip_base = input("Entrez le début de l'adresse réseau (ex: 192.168.1) : ").strip()
+    plage = input("Entrez la plage à scanner (exemple : 1-10) : ").strip()
+
+    debut, fin = map(int, plage.split("-"))
+    resultats_ping = []
+
+    print(f"\n🔎 Début du scan de {ip_base}.{debut} à {ip_base}.{fin} ...")
+
+    def ping(ip):
+        response = os.system(f"ping -n 1 {ip} >nul")
+        if response == 0:
+            resultats_ping.append((ip, True))
+        else:
+            resultats_ping.append((ip, False))
+
+    threads = []
+    for i in range(debut, fin + 1):
+        ip = f"{ip_base}.{i}"
+        t = threading.Thread(target=ping, args=(ip,))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
+    resultats_ping.sort(key=lambda x: list(map(int, x[0].split("."))))
+
+    print("\n📋 Résultat du scan réseau :")
+    for ip, actif in resultats_ping:
+        etat = "actif" if actif else "injoignable"
+        print(f"{ip} : {etat}")
+
+# Fonction pour scanner un port précis
+def port_specifique(Hote, Port, Techno):
+    try:
+        # Sécurisation de l'entrée utilisateur :
+        Port = int(Port)
+        if not (1 <= Port <= 65535):
+            print("❌ Le numéro de port doit être compris entre 1 et 65535")
+            return
+
+        start = time.time()
+
+        if Techno == "1":
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(1)
+            s.connect((Hote, Port))
+            print(f"✅ Le port {Port} (TCP) est ouvert")
+        elif Techno == "2":
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.settimeout(1)
+            s.connect((Hote, Port))
+            print(f"✅ Le port {Port} (UDP) est ouvert")
+    except ValueError:
+        print("❌ Vous devez entrer un numéro de port valide (entier).")
+    except:
+        print(f"❌ Le port {Port} est fermé")
+    finally:
+        end = time.time()
+        print(f"Durée du scan : {round(end - start, 2)} secondes")
+        try:
+            s.close()
+        except:
+            pass
+
+
+# Fonction plage de ports
+def plage_de_ports(Hote, Debut, Fin, Techno):
+    Debut, Fin = int(Debut), int(Fin)
+    assert Debut <= Fin <= 65535
+
+    def verifier(port):
+        try:
+            if Techno == "1":
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.5)
+                s.connect((Hote, port))
+                return (port, True)
+            elif Techno == "2":
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.settimeout(0.5)
+                s.connect((Hote, port))
+                return (port, True)
+        except:
+            return (port, False)
+        finally:
+            s.close()
+
+    start = time.time()
+    with ThreadPoolExecutor(max_workers=300) as executor:
+        futures = [executor.submit(verifier, p) for p in range(Debut, Fin + 1)]
+        resultats = [f.result() for f in as_completed(futures)]
+
+    resultats.sort()
+    for port, ouvert in resultats:
+        etat = "ouvert" if ouvert else "fermé"
+        print(f"Port {port}: {etat}")
+
+    end = time.time()
+    print(f"Durée du scan de plage : {round(end - start, 2)} secondes")
+
+# Menu principal du module scan
+def menu_scan():
+    while True:
+        print("\n====== MENU SCAN ======")
+        print("1 : Scan réseau (ping sur plusieurs IP)")
+        print("2 : Scan d'un port spécifique")
+        print("3 : Scan d'une plage de ports")
+        print("4 : Quitter le module de scan")
+        choix = input("Votre choix : ")
+
+        if choix == "1":
+            scan_reseau()
+        elif choix == "2":
+            Hote = ip_input()
+            Port = input("Quel port voulez-vous scanner ? : ")
+            Techno = input("Protocole TCP (1) ou UDP (2) ? : ")
+            port_specifique(Hote, Port, Techno)
+        elif choix == "3":
+            Hote = ip_input()
+            Debut = input("Port de début : ")
+            Fin = input("Port de fin : ")
+            Techno = input("Protocole TCP (1) ou UDP (2) ? : ")
+            plage_de_ports(Hote, Debut, Fin, Techno)
+        elif choix == "4":
+            print("Sortie du module de scan.\n")
+            break
+        else:
+            print("Choix invalide.")
