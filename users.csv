@@ -1,0 +1,5 @@
+﻿login,password,role,ftp_user,ftp_pass
+admin_supreme_paris,paris123,superadmin,PARIS,Paris
+admin_marseille,marseille123,admin,MARSEILLE,Marseille
+admin_grenoble,grenoble123,admin,GRENOBLE,Grenoble
+admin_rennes,rennes123,admin,RENNES,Rennes
